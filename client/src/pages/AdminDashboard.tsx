@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
+import { io, Socket } from "socket.io-client";
 
 type Session = {
   id: number;
@@ -58,6 +59,13 @@ function getRemainingDisplay(session: Session): string {
 export default function AdminDashboard() {
   const { isAuthenticated, isLoading, refetch: refetchAuth } = useAdminAuth();
   const [, navigate] = useLocation();
+  const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    const socket = io({ path: "/api/socket" });
+    socketRef.current = socket;
+    return () => { socket.disconnect(); };
+  }, []);
 
   const { data: sessions = [], refetch: refetchSessions } = trpc.sessions.list.useQuery(
     undefined,
@@ -66,6 +74,8 @@ export default function AdminDashboard() {
 
   const startSession = trpc.sessions.start.useMutation({
     onSuccess: (data, vars) => {
+      // Socket.ioでお客様画面に「セッション開始」を通知
+      socketRef.current?.emit("session_start_notify", { sessionId: vars.id });
       toast.success("セッションを開始しました");
       navigate(`/admin/session/${vars.id}`);
     },

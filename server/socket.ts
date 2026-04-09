@@ -116,6 +116,12 @@ export function initSocketIO(httpServer: HttpServer) {
       socket.to(room).emit("extension_notification", { sessionId, minutes });
     });
 
+    // Extension URL notify (admin -> client): チャットに送らず専用バーにURLを表示
+    socket.on("extension_url_notify", ({ sessionId, minutes, url }) => {
+      const room = `session_${sessionId}`;
+      socket.to(room).emit("extension_url_received", { sessionId, minutes, url });
+    });
+
     // Extension confirmed (admin -> client)
     socket.on("extension_confirmed", async ({ sessionId, addMinutes }) => {
       try {

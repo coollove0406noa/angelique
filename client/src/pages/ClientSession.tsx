@@ -58,6 +58,8 @@ export default function ClientSession() {
   // お客様側終了確認ダイアログ
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [clientEnded, setClientEnded] = useState(false);
+  // 管理者から送られた延長URL（チャットではなく専用バーに表示）
+  const [extensionUrlReceived, setExtensionUrlReceived] = useState<{ minutes: number; url: string } | null>(null);
   // 画像アップロード
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -163,6 +165,10 @@ export default function ClientSession() {
       setSessionEndedMessage(true);
     });
 
+    // 管理者から延長URLを受信（チャットではなく専用バーに表示）
+    socket.on("extension_url_received", ({ minutes, url }: { minutes: number; url: string }) => {
+      setExtensionUrlReceived({ minutes, url });
+    });
     // 管理者がセッション開始 → ウェイティングルームを終了
     socket.on("session_started", () => {
       setShowWaitingRoom(false);
@@ -772,6 +778,40 @@ export default function ClientSession() {
         </div>
       )}
 
+      {/* 管理者から延長URLを受信した場合の専用バー */}
+      {extensionUrlReceived && !showExtensionUI && (
+        <div
+          style={{
+            background: "#fdf5f3",
+            borderBottom: "1px solid #d4bfbb",
+            padding: "14px 16px",
+            position: "sticky",
+            top: session?.sessionType === "voice" ? "149px" : "101px",
+            zIndex: 37,
+            boxShadow: "0 2px 8px rgba(107,91,88,0.08)",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ fontSize: "13px", color: "#6b5b58", marginBottom: "10px", fontWeight: 500 }}>
+            ✨ {extensionUrlReceived.minutes}分延長のご案内が届いています
+          </p>
+          <a
+            href={extensionUrlReceived.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="angelique-btn"
+            style={{ padding: "10px 24px", fontSize: "14px", display: "inline-block" }}
+          >
+            {extensionUrlReceived.minutes}分延長のお手続きはこちら
+          </a>
+          <button
+            onClick={() => setExtensionUrlReceived(null)}
+            style={{ display: "block", margin: "8px auto 0", fontSize: "12px", color: "#9e8480", background: "none", border: "none", cursor: "pointer" }}
+          >
+            × 閉じる
+          </button>
+        </div>
+      )}
       {/* セッション終了バナー（チャット履歴がある場合） */}
       {sessionEndedMessage && messages.length > 0 && (
         <div

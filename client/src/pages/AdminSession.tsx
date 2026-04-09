@@ -408,14 +408,14 @@ export default function AdminSession() {
       toast.error("延長URLが設定されていません。設定画面でURLを登録してください。");
       return;
     }
-    const message = `【延長のご案内】\n${minutes}分延長をご希望の場合は、下記URLよりお手続きください。\n${url}`;
-    socketRef.current?.emit("send_message", {
+    // チャットに送らず、Socket.io専用イベントでお客様の延長バーにURLを直接表示
+    socketRef.current?.emit("extension_url_notify", {
       sessionId,
-      sender: "system",
-      content: message,
+      minutes,
+      url,
     });
     setShowExtendModal(false);
-    toast.success(`${minutes}分延長URLを送信しました`);
+    toast.success(`${minutes}分延長URLをお客様に送信しました`);
   }, [storeSettings, sessionId, session]);
 
   const handleExtensionResume = useCallback((minutes: number) => {

@@ -17,11 +17,14 @@ export default function LinkifiedText({ text, className, style }: Props) {
   // URLを検出してパーツに分割
   const parts = text.split(URL_REGEX);
 
+  // URL_REGEXを使い回すとlastIndexがずれるためリセット
+  URL_REGEX.lastIndex = 0;
+
   return (
     <span className={className} style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", ...style }}>
       {parts.map((part, i) => {
-        if (URL_REGEX.test(part)) {
-          // URLの場合はリンクとして表示
+        // splitの仕様上、奇数インデックスがURL部分
+        if (i % 2 === 1) {
           return (
             <a
               key={i}
@@ -31,14 +34,11 @@ export default function LinkifiedText({ text, className, style }: Props) {
               style={{
                 color: "#c9a8a3",
                 textDecoration: "underline",
-                fontWeight: 500,
-                display: "inline-block",
-                marginTop: "4px",
                 wordBreak: "break-all",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              🔗 こちらをクリックして延長手続きへ
+              {part}
             </a>
           );
         }
