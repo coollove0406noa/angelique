@@ -14,6 +14,10 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
+  // お客様セッションページ（/session/...）ではOAuthリダイレクトを行わない
+  // お客様はワンタイムトークンURLのみでアクセスするため、ログインは不要
+  if (window.location.pathname.startsWith("/session/")) return;
+
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
   if (!isUnauthorized) return;

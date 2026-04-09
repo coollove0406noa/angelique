@@ -184,6 +184,32 @@ describe("sessions.getByToken", () => {
       caller.sessions.getByToken({ token: "invalid-token" })
     ).rejects.toThrow("セッションが見つかりません");
   });
+
+  it("削除以外の全ステータス（scheduled/active/paused/completed/cancelled）は有効なトークンとして返却する", async () => {
+    const statuses = ["scheduled", "active", "paused", "completed", "cancelled"] as const;
+    for (const status of statuses) {
+      vi.mocked(db.getSessionByToken).mockResolvedValueOnce({
+        id: 99,
+        clientId: 1,
+        clientToken: "test-token",
+        scheduledAt: new Date(),
+        durationMinutes: 30,
+        carryoverMinutes: 0,
+        status,
+        startedAt: null,
+        endedAt: null,
+        remainingSeconds: 1800,
+        timerStartedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        clientName: "Test Client",
+        clientEmail: "test@example.com",
+      } as never);
+      const caller = appRouter.createCaller(createCtx());
+      const result = await caller.sessions.getByToken({ token: "test-token" });
+      expect(result.status).toBe(status);
+    }
+  });
 });
 
 // ── sessions.start ─────────────────────────────────────────────────────────

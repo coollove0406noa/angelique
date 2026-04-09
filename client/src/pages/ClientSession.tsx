@@ -48,7 +48,7 @@ export default function ClientSession() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { data: sessionData, isLoading, isError } = trpc.sessions.getByToken.useQuery(
+  const { data: sessionData, isLoading, isError, refetch: refetchSession } = trpc.sessions.getByToken.useQuery(
     { token: token ?? "" },
     { enabled: !!token, retry: false }
   );
@@ -68,6 +68,7 @@ export default function ClientSession() {
       if (sessionData.status === "active") setTimerStatus("active");
       else if (sessionData.status === "paused") setTimerStatus("paused");
       else if (sessionData.status === "completed") setTimerStatus("ended");
+      else if (sessionData.status === "cancelled") setTimerStatus("ended"); // キャンセル済みは終了として表示
     }
   }, [sessionData]);
 
@@ -232,25 +233,81 @@ export default function ClientSession() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "#f9f5f4" }}
+        style={{ background: "#f9f5f4", padding: "24px" }}
       >
-        <div className="angelique-card p-10 max-w-sm mx-4 text-center">
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            border: "1px solid #d4bfbb",
+            boxShadow: "0 4px 24px rgba(107,91,88,0.08)",
+            padding: "40px 32px",
+            maxWidth: "400px",
+            width: "100%",
+            textAlign: "center",
+          }}
+        >
           <div
             style={{
               fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "28px",
+              fontSize: "26px",
               color: "#c9a8a3",
-              marginBottom: "16px",
+              letterSpacing: "2px",
+              marginBottom: "24px",
             }}
           >
             ✦ angelique
           </div>
-          <p style={{ color: "#6b5b58", fontSize: "15px", marginBottom: "8px" }}>
-            セッションが見つかりません
+          <div style={{ fontSize: "36px", marginBottom: "16px" }}>⚠️</div>
+          <p style={{ color: "#6b5b58", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
+            申し訳ありません
           </p>
-          <p style={{ color: "#9e8480", fontSize: "13px" }}>
-            URLをご確認いただくか、占い師にお問い合わせください。
+          <p style={{ color: "#9e8480", fontSize: "13px", lineHeight: 1.8, marginBottom: "28px" }}>
+            セッション情報を読み込めませんでした。
+            <br />
+            URLをご確認いただくか、占い師にご連絡ください。
           </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", alignItems: "center" }}>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                background: "#c9a8a3",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "24px",
+                padding: "12px 32px",
+                fontSize: "14px",
+                fontFamily: "'Noto Sans JP', sans-serif",
+                cursor: "pointer",
+                width: "100%",
+                maxWidth: "280px",
+                fontWeight: 500,
+              }}
+            >
+              ページを再読み込み
+            </button>
+            <button
+              onClick={() => {
+                // react-queryのrefetchでセッションデータを再取得する
+                refetchSession();
+              }}
+              style={{
+                background: "#f3e7e5",
+                color: "#6b5b58",
+                border: "1px solid #d4bfbb",
+                borderRadius: "24px",
+                padding: "12px 32px",
+                fontSize: "14px",
+                fontFamily: "'Noto Sans JP', sans-serif",
+                cursor: "pointer",
+                width: "100%",
+                maxWidth: "280px",
+                fontWeight: 500,
+              }}
+            >
+              セッションに戻る
+            </button>
+          </div>
         </div>
       </div>
     );
