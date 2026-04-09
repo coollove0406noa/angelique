@@ -61,9 +61,11 @@ export default function AdminSession() {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerStatus, setTimerStatus] = useState<"idle" | "active" | "paused" | "ended">("idle");
-  // Use refs for alert flags to avoid stale closure in setInterval
+  // Use refs for alert flags AND timer state to avoid stale closure in setInterval
   const alert5mFiredRef = useRef(false);
   const alert1mFiredRef = useRef(false);
+  const remainingSecondsRef = useRef(0);
+  const timerStartedAtRef = useRef<number | null>(null);
   const [screenFlash, setScreenFlash] = useState(false);
   const [showCarryoverModal, setShowCarryoverModal] = useState(false);
   const [carryoverMinutes, setCarryoverMinutes] = useState("");
@@ -103,7 +105,9 @@ export default function AdminSession() {
       const newRemaining = data.remainingSeconds;
       const newTimerStartedAt = data.timerStartedAt;
       setRemainingSeconds(newRemaining);
+      remainingSecondsRef.current = newRemaining;
       setTimerStartedAt(newTimerStartedAt);
+      timerStartedAtRef.current = newTimerStartedAt;
       setTimerStatus("active");
       alert5mFiredRef.current = false;
       alert1mFiredRef.current = false;
@@ -126,7 +130,10 @@ export default function AdminSession() {
       setSession(sessionData as unknown as Session);
       const secs = sessionData.remainingSeconds ?? 0;
       setRemainingSeconds(secs);
-      setTimerStartedAt(sessionData.timerStartedAt ?? null);
+      remainingSecondsRef.current = secs;
+      const tsa = sessionData.timerStartedAt ?? null;
+      setTimerStartedAt(tsa);
+      timerStartedAtRef.current = tsa;
       if (sessionData.status === "active") setTimerStatus("active");
       else if (sessionData.status === "paused") setTimerStatus("paused");
       else if (sessionData.status === "completed") setTimerStatus("ended");
@@ -161,7 +168,9 @@ export default function AdminSession() {
 
     socket.on("timer_update", ({ status, remainingSeconds: rs, timerStartedAt: tsa }) => {
       setRemainingSeconds(rs);
+      remainingSecondsRef.current = rs;
       setTimerStartedAt(tsa);
+      timerStartedAtRef.current = tsa;
       if (status === "active") setTimerStatus("active");
       else if (status === "paused") setTimerStatus("paused");
     });
@@ -169,6 +178,7 @@ export default function AdminSession() {
     socket.on("timer_ended", () => {
       setTimerStatus("ended");
       setRemainingSeconds(0);
+      remainingSecondsRef.current = 0;
     });
 
     socket.on("extension_notification", ({ minutes }: { minutes: number }) => {
@@ -177,7 +187,7 @@ export default function AdminSession() {
     });
 
     // クライアントがウェイティングルームに入ったことを通知
-     socket.on("client_waiting", () => {
+    socket.on("client_waiting", () => {
       setClientWaiting(true);
       toast.info("お客様がウェイティングルームで待機中です", { duration: 6000 });
     });
@@ -190,15 +200,17 @@ export default function AdminSession() {
     return () => { socket.disconnect(); };
   }, [sessionId, isAuthenticated]);
 
-  // Timer countdown
+  // Timer countdown - refを使ってstale closureを防ぐ
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
     if (timerStatus === "active" && timerStartedAt !== null) {
       timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
-        const current = Math.max(0, remainingSeconds - elapsed);
-        setRemainingSeconds(current);
+        const tsa = timerStartedAtRef.current;
+        const base = remainingSecondsRef.current;
+        if (tsa === null) return;
+        const elapsed = Math.floor((Date.now() - tsa) / 1000);
+        const current = Math.max(0, base - elapsed);
 
         // 5-minute alert (once)
         if (current <= 5 * 60 && current > 5 * 60 - 2 && !alert5mFiredRef.current) {
@@ -281,7 +293,9 @@ export default function AdminSession() {
     const totalSeconds = (session.durationMinutes + session.carryoverMinutes) * 60;
     const now = Date.now();
     setRemainingSeconds(totalSeconds);
+    remainingSecondsRef.current = totalSeconds;
     setTimerStartedAt(now);
+    timerStartedAtRef.current = now;
     setTimerStatus("active");
     alert5mFiredRef.current = false;
     alert1mFiredRef.current = false;
@@ -296,18 +310,43 @@ export default function AdminSession() {
   }, [session, sessionId]);
 
   // セッション開始通知（ウェイティングルームのクライアントに通知）
+  // timer_start だけで timer_update が全クライアントにブロードキャストされ、
+  // ClientSession.tsx の timer_update ハンドラーが showWaitingRoom を false にする
   const handleStartSession = useCallback(() => {
-    socketRef.current?.emit("session_start_notify", { sessionId });
+    if (!session) return;
+    const totalSeconds = (session.durationMinutes + session.carryoverMinutes) * 60;
+    const now = Date.now();
+    setRemainingSeconds(totalSeconds);
+    remainingSecondsRef.current = totalSeconds;
+    setTimerStartedAt(now);
+    timerStartedAtRef.current = now;
+    setTimerStatus("active");
+    alert5mFiredRef.current = false;
+    alert1mFiredRef.current = false;
     setClientWaiting(false);
-    toast.success("お客様にセッション開始を通知しました");
-    handleStartTimer();
-  }, [sessionId, handleStartTimer]);
+    // timer_start → サーバーが timer_update をルーム全体にブロードキャスト
+    // これだけでお客様画面が自動的にウェイティングルームから切り替わる
+    socketRef.current?.emit("timer_start", { sessionId, remainingSeconds: totalSeconds });
+    // DBを更新
+    updateSessionMutation.mutate({
+      id: sessionId,
+      status: "active",
+      startedAt: new Date().toISOString(),
+      remainingSeconds: totalSeconds,
+      timerStartedAt: now,
+    });
+    toast.success("セッションを開始しました");
+  }, [session, sessionId]);
 
   const handlePauseTimer = useCallback(() => {
-    const elapsed = timerStartedAt ? Math.floor((Date.now() - timerStartedAt) / 1000) : 0;
-    const current = Math.max(0, remainingSeconds - elapsed);
+    const tsa = timerStartedAtRef.current;
+    const base = remainingSecondsRef.current;
+    const elapsed = tsa ? Math.floor((Date.now() - tsa) / 1000) : 0;
+    const current = Math.max(0, base - elapsed);
     setRemainingSeconds(current);
+    remainingSecondsRef.current = current;
     setTimerStartedAt(null);
+    timerStartedAtRef.current = null;
     setTimerStatus("paused");
     socketRef.current?.emit("timer_pause", { sessionId, remainingSeconds: current });
     updateSessionMutation.mutate({
@@ -316,20 +355,22 @@ export default function AdminSession() {
       remainingSeconds: current,
       timerStartedAt: null,
     });
-  }, [timerStartedAt, remainingSeconds, sessionId]);
+  }, [sessionId]);
 
   const handleResumeTimer = useCallback(() => {
     const now = Date.now();
+    const current = remainingSecondsRef.current;
     setTimerStartedAt(now);
+    timerStartedAtRef.current = now;
     setTimerStatus("active");
-    socketRef.current?.emit("timer_resume", { sessionId, remainingSeconds });
+    socketRef.current?.emit("timer_resume", { sessionId, remainingSeconds: current });
     updateSessionMutation.mutate({
       id: sessionId,
       status: "active",
-      remainingSeconds,
+      remainingSeconds: current,
       timerStartedAt: now,
     });
-  }, [remainingSeconds, sessionId]);
+  }, [sessionId]);
 
   const handleSendMessage = useCallback(() => {
     if (!inputText.trim()) return;
@@ -393,12 +434,10 @@ export default function AdminSession() {
   const handleSendExtensionLink = useCallback((minutes: number) => {
     const settings = storeSettings ?? [];
     const sType = session?.sessionType ?? "chat";
-    // 鑑定方法（chat/voice）に応じたキーを使用
     const keyMap: Record<number, string> = {
       10: sType === "voice" ? "stores_url_voice_10min" : "stores_url_chat_10min",
       30: sType === "voice" ? "stores_url_voice_30min" : "stores_url_chat_30min",
     };
-    // 新キーで検索、なければ旧キー（移行期間のフォールバック）で検索
     const fallbackKey: Record<number, string> = { 10: "stores_url_10min", 30: "stores_url_30min" };
     const url =
       settings.find((s) => s.key === keyMap[minutes])?.value ||
@@ -408,7 +447,6 @@ export default function AdminSession() {
       toast.error("延長URLが設定されていません。設定画面でURLを登録してください。");
       return;
     }
-    // チャットに送らず、Socket.io専用イベントでお客様の延長バーにURLを直接表示
     socketRef.current?.emit("extension_url_notify", {
       sessionId,
       minutes,
@@ -420,11 +458,7 @@ export default function AdminSession() {
 
   const handleExtensionResume = useCallback((minutes: number) => {
     setExtensionNotification(null);
-    // addExtensionMutation がDBを更新し、onSuccess でremainingSeconds/timerStartedAtを受け取る
-    // socket の extension_resume は addExtensionMutation の onSuccess 後に emit する
     addExtensionMutation.mutate({ id: sessionId, addMinutes: minutes });
-    // 注意: extension_resume の remainingSeconds は addExtensionMutation の onSuccess で更新された値を使う
-    // ここでは二重加算を防ぐため emit しない（onSuccess で emit する）
   }, [sessionId]);
 
   const handleCarryoverSave = useCallback(() => {
@@ -451,7 +485,7 @@ export default function AdminSession() {
     }
   }, [sessionId, navigate]);
 
-  // Display timer
+  // Display timer - refから計算してリアルタイム表示
   const displaySeconds = (() => {
     if (timerStatus === "active" && timerStartedAt) {
       const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
@@ -483,11 +517,105 @@ export default function AdminSession() {
     >
       <AngeliqueHeader isAdmin onLogout={() => logoutMutation.mutate()} />
 
-      <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-4 py-6 gap-4">
+      {/* ── 上部固定バー：タイマー + 終了ボタン ─────────────────────────── */}
+      <div
+        style={{
+          position: "sticky",
+          top: "53px",
+          zIndex: 45,
+          background: isWarning ? "#fff3e0" : "#f3e7e5",
+          borderBottom: "1px solid #d4bfbb",
+          padding: "10px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          transition: "background 0.5s",
+          boxShadow: "0 2px 8px rgba(107,91,88,0.06)",
+        }}
+      >
+        {/* タイマー表示 */}
+        <div className="flex items-center gap-3">
+          <span style={{ fontSize: "12px", color: "#9e8480" }}>残り時間</span>
+          <span
+            className={`timer-display ${isWarning && timerStatus === "active" ? "timer-flash warning" : ""} ${isEnded ? "ended" : ""}`}
+            style={{ fontSize: "28px" }}
+          >
+            {timerStr}
+          </span>
+          <span style={{ fontSize: "11px", color: "#9e8480" }}>
+            {timerStatus === "active" && "進行中"}
+            {timerStatus === "paused" && "⏸ 一時停止"}
+            {timerStatus === "ended" && "時間終了"}
+            {timerStatus === "idle" && "未開始"}
+          </span>
+          {isWarning && timerStatus === "active" && (
+            <span style={{ fontSize: "12px", color: "#f57c00", fontWeight: 600 }}>⚠ 残り5分</span>
+          )}
+        </div>
+
+        {/* タイマーコントロール + 終了ボタン */}
+        <div className="flex items-center gap-2">
+          {timerStatus === "idle" && (
+            <button
+              className="angelique-btn"
+              onClick={handleStartSession}
+              style={{
+                padding: "8px 16px",
+                fontSize: "13px",
+                position: "relative",
+                background: clientWaiting ? "#c9a8a3" : undefined,
+              }}
+            >
+              {clientWaiting && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-4px",
+                    right: "-4px",
+                    width: "10px",
+                    height: "10px",
+                    background: "#f57c00",
+                    borderRadius: "50%",
+                  }}
+                />
+              )}
+              ▶ セッション開始
+            </button>
+          )}
+          {timerStatus === "active" && (
+            <button
+              className="angelique-btn-outline"
+              onClick={handlePauseTimer}
+              style={{ padding: "8px 14px", fontSize: "13px" }}
+            >
+              ⏸ 一時停止
+            </button>
+          )}
+          {timerStatus === "paused" && (
+            <button
+              className="angelique-btn"
+              onClick={handleResumeTimer}
+              style={{ padding: "8px 14px", fontSize: "13px" }}
+            >
+              ▶ 再開
+            </button>
+          )}
+          <button
+            className="angelique-btn-danger"
+            onClick={handleCompleteSession}
+            style={{ padding: "8px 14px", fontSize: "13px" }}
+          >
+            ✓ 完了
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-4 py-4 gap-4">
         {/* Session Info Bar */}
-        <div className="angelique-card p-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="angelique-card p-3 flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <div style={{ fontSize: "18px", fontWeight: 500, color: "#6b5b58" }}>
+            <div style={{ fontSize: "16px", fontWeight: 500, color: "#6b5b58" }}>
               {session?.clientName ?? "読み込み中..."}
             </div>
             <div style={{ fontSize: "12px", color: "#9e8480" }}>
@@ -551,7 +679,7 @@ export default function AdminSession() {
           {/* Chat Area */}
           <div
             className="angelique-card flex flex-col flex-1"
-            style={{ minHeight: 0, height: "calc(100vh - 280px)" }}
+            style={{ minHeight: 0, height: "calc(100vh - 320px)" }}
           >
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
@@ -578,7 +706,7 @@ export default function AdminSession() {
                       <LinkifiedText text={msg.content} />
                     </div>
                   ) : (
-                    <div>
+                    <div style={{ maxWidth: "85%" }}>
                       {msg.sender === "client" && (
                         <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "3px", marginLeft: "4px" }}>
                           {session?.clientName}
@@ -722,8 +850,8 @@ export default function AdminSession() {
             </div>
           </div>
 
-          {/* Right Panel: Timer + Controls */}
-          <div className="flex flex-col gap-4" style={{ width: "280px", minWidth: "280px" }}>
+          {/* Right Panel: Controls */}
+          <div className="flex flex-col gap-4" style={{ width: "260px", minWidth: "260px" }}>
             {/* Voice Call Panel (voice sessions only) */}
             {session?.sessionType === "voice" && (
               <VoiceCall
@@ -732,67 +860,6 @@ export default function AdminSession() {
                 isSessionActive={timerStatus === "active" || timerStatus === "paused"}
               />
             )}
-            {/* Timer */}
-            <div className="angelique-card p-6 text-center">
-              <div style={{ fontSize: "12px", color: "#9e8480", marginBottom: "8px" }}>残り時間</div>
-              <div
-                className={`timer-display ${isWarning && timerStatus === "active" ? "timer-flash warning" : ""} ${isEnded ? "ended" : ""}`}
-              >
-                {timerStr}
-              </div>
-              <div style={{ fontSize: "11px", color: "#d4bfbb", marginTop: "8px" }}>
-                {timerStatus === "active" && "進行中"}
-                {timerStatus === "paused" && "一時停止"}
-                {timerStatus === "ended" && "時間終了"}
-                {timerStatus === "idle" && "未開始"}
-              </div>
-
-              {/* Timer Controls */}
-              <div className="flex flex-col gap-2 mt-4">
-                {timerStatus === "idle" && (
-                  <>
-                    {/* セッション開始（ウェイティングルームのクライアントに通知） */}
-                    <button
-                      className="angelique-btn justify-center"
-                      onClick={handleStartSession}
-                      style={{
-                        justifyContent: "center",
-                        background: clientWaiting ? "#c9a8a3" : undefined,
-                        position: "relative",
-                      }}
-                    >
-                      {clientWaiting && (
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: "-4px",
-                            right: "-4px",
-                            width: "10px",
-                            height: "10px",
-                            background: "#f57c00",
-                            borderRadius: "50%",
-                          }}
-                        />
-                      )}
-                      ▶ セッション開始
-                    </button>
-                    <p style={{ fontSize: "10px", color: "#9e8480", marginTop: "2px" }}>
-                      ※ お客様の待機画面が自動でチャット画面に切り替わります
-                    </p>
-                  </>
-                )}
-                {timerStatus === "active" && (
-                  <button className="angelique-btn-outline justify-center" onClick={handlePauseTimer}>
-                    ⏸ 一時停止
-                  </button>
-                )}
-                {timerStatus === "paused" && (
-                  <button className="angelique-btn justify-center" onClick={handleResumeTimer}>
-                    ▶ 再開
-                  </button>
-                )}
-              </div>
-            </div>
 
             {/* Extension Notification */}
             {extensionNotification && (
@@ -835,22 +902,12 @@ export default function AdminSession() {
               >
                 📋 次回に繰り越す
               </button>
-              <button
-                className="angelique-btn-danger justify-center"
-                onClick={handleCompleteSession}
-                style={{ justifyContent: "center" }}
-              >
-                ✓ セッション完了
-              </button>
             </div>
 
             {/* Client URL */}
             {session && (
               <div className="angelique-card p-4">
                 <div style={{ fontSize: "12px", color: "#9e8480", marginBottom: "4px" }}>お客様URL</div>
-                <p style={{ fontSize: "11px", color: "#c9a8a3", marginBottom: "8px" }}>
-                  ↓ このURLをお客様に送ってください
-                </p>
                 <div
                   style={{
                     fontSize: "11px",

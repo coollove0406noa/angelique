@@ -49,8 +49,9 @@ export default function ClientSession() {
   const [timerStatus, setTimerStatus] = useState<"idle" | "active" | "paused" | "ended">("idle");
   const [showExtensionUI, setShowExtensionUI] = useState(false);
   const [extensionWaiting, setExtensionWaiting] = useState(false);
-  const [alert5mFired, setAlert5mFired] = useState(false);
-  const [alert1mFired, setAlert1mFired] = useState(false);
+  // アラームフラグはuseRefで管理してstale closureを防ぐ
+  const alert5mFiredRef = useRef(false);
+  const alert1mFiredRef = useRef(false);
   // ウェイティングルーム状態
   const [showWaitingRoom, setShowWaitingRoom] = useState(true);
   // セッション終了メッセージ
@@ -142,6 +143,9 @@ export default function ClientSession() {
         setShowWaitingRoom(false);
         setShowExtensionUI(false);
         setExtensionWaiting(false);
+        // アラームフラグをリセット（延長後の再開に対応）
+        alert5mFiredRef.current = false;
+        alert1mFiredRef.current = false;
       } else if (status === "paused") {
         setTimerStatus("paused");
       }
@@ -193,12 +197,12 @@ export default function ClientSession() {
         const elapsed = Math.floor((Date.now() - baseTime) / 1000);
         const current = Math.max(0, baseRemaining - elapsed);
 
-        if (current <= ALERT_THRESHOLD && current > ALERT_THRESHOLD - 2 && !alert5mFired) {
-          setAlert5mFired(true);
+        if (current <= ALERT_THRESHOLD && current > ALERT_THRESHOLD - 2 && !alert5mFiredRef.current) {
+          alert5mFiredRef.current = true;
           toast.warning("⚠ 残り5分です");
         }
-        if (current <= 60 && current > 58 && !alert1mFired) {
-          setAlert1mFired(true);
+        if (current <= 60 && current > 58 && !alert1mFiredRef.current) {
+          alert1mFiredRef.current = true;
           toast.warning("⚠ 残り1分です！");
         }
 
@@ -459,47 +463,6 @@ export default function ClientSession() {
             ありがとうございました
           </p>
           <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8 }}>
-            またのご利用をお待ちしております。
-          </p>
-        </div>
-      </div>
-    );
-  }
-  // ── セッション終了画面 ──────────────────────────────────────────────
-  if (sessionEndedMessage && messages.length === 0 && timerStatus === "ended") {
-    return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "#f9f5f4", padding: "24px" }}
-      >
-        <div
-          style={{
-            background: "#ffffff",
-            borderRadius: "16px",
-            border: "1px solid #d4bfbb",
-            padding: "48px 32px",
-            maxWidth: "360px",
-            width: "100%",
-            textAlign: "center",
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "26px",
-              color: "#c9a8a3",
-              letterSpacing: "2px",
-              marginBottom: "24px",
-            }}
-          >
-            ✦ angelique
-          </div>
-          <div style={{ fontSize: "40px", marginBottom: "16px" }}>🌙</div>
-          <p style={{ color: "#6b5b58", fontSize: "18px", fontWeight: 600, marginBottom: "12px", fontFamily: "'Cormorant Garamond', serif" }}>
-            鑑定が終了しました
-          </p>
-          <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8 }}>
-            ありがとうございました。<br />
             またのご利用をお待ちしております。
           </p>
         </div>
@@ -812,26 +775,50 @@ export default function ClientSession() {
           </button>
         </div>
       )}
-      {/* セッション終了バナー（チャット履歴がある場合） */}
-      {sessionEndedMessage && messages.length > 0 && (
+      {/* セッション終了ポップアップ（画面中央に大きく表示） */}
+      {sessionEndedMessage && (
         <div
           style={{
-            background: "#f3e7e5",
-            borderBottom: "1px solid #d4bfbb",
-            padding: "16px",
-            textAlign: "center",
-            position: "sticky",
-            top: session?.sessionType === "voice" ? "149px" : "101px",
-            zIndex: 38,
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "rgba(107,91,88,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
           }}
         >
-          <div style={{ fontSize: "20px", marginBottom: "6px" }}>🌙</div>
-          <p style={{ color: "#6b5b58", fontSize: "15px", fontWeight: 600, marginBottom: "4px" }}>
-            鑑定が終了しました
-          </p>
-          <p style={{ color: "#9e8480", fontSize: "13px" }}>
-            ありがとうございました。またのご利用をお待ちしております。
-          </p>
+          <div
+            style={{
+              background: "#fdfaf9",
+              borderRadius: "20px",
+              padding: "48px 40px",
+              textAlign: "center",
+              maxWidth: "400px",
+              width: "100%",
+              boxShadow: "0 8px 40px rgba(107,91,88,0.25)",
+              border: "1px solid #d4bfbb",
+            }}
+          >
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🌙</div>
+            <p
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: "26px",
+                color: "#6b5b58",
+                fontWeight: 600,
+                marginBottom: "12px",
+                lineHeight: 1.4,
+              }}
+            >
+              鑑定が終了しました
+            </p>
+            <p style={{ color: "#9e8480", fontSize: "15px", lineHeight: 1.7 }}>
+              ありがとうございました。<br />
+              またのご利用をお待ちしております。
+            </p>
+          </div>
         </div>
       )}
 
@@ -883,7 +870,7 @@ export default function ClientSession() {
                   <LinkifiedText text={msg.content} />
                 </div>
               ) : (
-                <div>
+                <div style={{ maxWidth: "88%" }}>
                   {msg.sender === "admin" && (
                     <div
                       style={{
@@ -930,7 +917,7 @@ export default function ClientSession() {
                   ) : (
                     <div
                       className={
-                        msg.sender === "client" ? "chat-bubble-admin" : "chat-bubble-client"
+                        msg.sender === "client" ? "chat-bubble-client-self" : "chat-bubble-client"
                       }
                     >
                       <LinkifiedText text={msg.content} />
