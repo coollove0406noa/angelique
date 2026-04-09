@@ -558,7 +558,7 @@ export default function ClientSession() {
               whiteSpace: "nowrap",
             }}
           >
-            終了
+            セッションを終了する
           </button>
         </div>
       </header>
@@ -589,7 +589,7 @@ export default function ClientSession() {
           >
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>🌙</div>
             <p style={{ color: "#6b5b58", fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
-              セッションを終了しますか？
+              本当に終了しますか？
             </p>
             <p style={{ color: "#9e8480", fontSize: "13px", marginBottom: "24px", lineHeight: 1.7 }}>
               終了すると元の画面に戻れなくなります。
