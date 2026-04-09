@@ -41,8 +41,12 @@
 
 ## Phase 8: テスト・チェックポイント
 - [x] Vitestテスト（14テスト全通過: admin.check, admin.login, clients, sessions, settings, carryover）
-- [ ] チェックポイント保存
+- [x] チェックポイント保存
 
 ## Phase 9: ドキュメント
-- [ ] 使い方マニュアル（日本語）
-- [ ] テーブル設計書
+- [x] 使い方マニュアル（日本語）
+- [x] テーブル設計書
+
+## 納品
+- [x] GitHubリポジトリ作成（https://github.com/coollove0406noa/angelique）
+- [x] 最終チェックポイント保存（version: 49d4520c）
