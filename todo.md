@@ -50,3 +50,9 @@
 ## 納品
 - [x] GitHubリポジトリ作成（https://github.com/coollove0406noa/angelique）
 - [x] 最終チェックポイント保存（version: 49d4520c）
+
+## バグ修正: SendGridメール送信
+- [x] 環境変数がサーバーに正しく渡されているか確認
+- [x] 顧客登録時のメール送信コードパスを確認・ログ追加
+- [x] SendGrid APIへの実際のHTTPリクエストを確認
+- [x] メール送信の単体テストを実行して結果を確認

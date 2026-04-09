@@ -209,22 +209,29 @@ const sessionsRouter = router({
       }
 
       // Send email
+      let emailResult: { success: boolean; error?: string } = { success: false, error: "skipped" };
       if (input.sendEmail) {
         const client = await getClientById(input.clientId);
         if (client) {
-          const origin = input.origin || "https://3000-i0a9gsx1vp6h24cg6hrua-153279cf.sg1.manus.computer";
+          const origin = input.origin || "https://angeliqueapp-b6ezj6ne.manus.space";
           const sessionUrl = `${origin}/session/${token}`;
-          await sendSessionInviteEmail({
+          console.log(`[Mailer] Sending invite to ${client.email} (session ${sessionId})`);
+          emailResult = await sendSessionInviteEmail({
             toEmail: client.email,
             toName: client.name,
             sessionUrl,
             scheduledAt: new Date(input.scheduledAt),
             durationMinutes: input.durationMinutes + totalCarryover,
           });
+          if (emailResult.success) {
+            console.log(`[Mailer] Email sent successfully to ${client.email}`);
+          } else {
+            console.error(`[Mailer] Email failed: ${emailResult.error}`);
+          }
         }
       }
 
-      return { id: sessionId, token };
+      return { id: sessionId, token, emailResult };
     }),
 
   update: publicProcedure
@@ -382,8 +389,9 @@ const emailRouter = router({
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
       const client = await getClientById(session.clientId);
       if (!client) throw new TRPCError({ code: "NOT_FOUND" });
-      const origin = input.origin || "https://3000-i0a9gsx1vp6h24cg6hrua-153279cf.sg1.manus.computer";
+      const origin = input.origin || "https://angeliqueapp-b6ezj6ne.manus.space";
       const sessionUrl = `${origin}/session/${session.clientToken}`;
+      console.log(`[Mailer] Resending invite to ${client.email} (session ${input.sessionId})`);
       const result = await sendSessionInviteEmail({
         toEmail: client.email,
         toName: client.name,
