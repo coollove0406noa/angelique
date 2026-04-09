@@ -1,126 +1,195 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-// ── タロットカードデータ（大アルカナ22枚）──────────────────────────────────
-const TAROT_CARDS = [
-  { name: "愚者", meaning: "新しい始まり・自由・冒険への一歩" },
-  { name: "魔術師", meaning: "意志の力・創造性・新しいスキル" },
-  { name: "女教皇", meaning: "直感・内なる知恵・神秘" },
-  { name: "女帝", meaning: "豊かさ・母性・自然の恵み" },
-  { name: "皇帝", meaning: "安定・権威・しっかりとした基盤" },
-  { name: "教皇", meaning: "伝統・精神的な導き・信頼" },
-  { name: "恋人たち", meaning: "愛・選択・調和" },
-  { name: "戦車", meaning: "勝利・意志の強さ・前進" },
-  { name: "力", meaning: "内なる強さ・勇気・忍耐" },
-  { name: "隠者", meaning: "内省・孤独の時間・真実の探求" },
-  { name: "運命の輪", meaning: "変化・サイクル・運命の転換点" },
-  { name: "正義", meaning: "公平・バランス・真実" },
-  { name: "吊るされた男", meaning: "手放す・新しい視点・待つ時間" },
-  { name: "死神", meaning: "変容・終わりと始まり・再生" },
-  { name: "節制", meaning: "調和・バランス・穏やかな流れ" },
-  { name: "悪魔", meaning: "束縛からの解放・欲望・影の部分" },
-  { name: "塔", meaning: "突然の変化・古いものの崩壊・解放" },
-  { name: "星", meaning: "希望・癒し・未来への光" },
-  { name: "月", meaning: "無意識・夢・隠れた真実" },
-  { name: "太陽", meaning: "喜び・成功・輝かしいエネルギー" },
-  { name: "審判", meaning: "覚醒・再生・新しい使命" },
-  { name: "世界", meaning: "完成・達成・新たなサイクルの始まり" },
+const CDN = "https://d2xsxph8kpxj0f.cloudfront.net/310519663226441831/B6EzJ6NeuYcNikyfaASeGg";
+
+// ── BGM 3曲 ──────────────────────────────────────────────────────────────
+const BGM_TRACKS = [
+  `${CDN}/bgm1_82b9bf72.wav`,
+  `${CDN}/bgm2_98e4b11a.wav`,
+  `${CDN}/bgm3_9f2c6999.wav`,
 ];
 
-// タロットカードの絵文字シンボル（カードの雰囲気を表現）
-const CARD_SYMBOLS = [
-  "🌟", "✨", "🌙", "⭐", "💫", "🔮", "🌸", "🌺",
-  "🦋", "🌈", "💎", "🌿", "🕊️", "🌊", "🔥", "🌙",
-  "☀️", "🌙", "⚡", "🌺", "🔔", "🌍",
+// ── タロットカードデータ（大アルカナ22枚・実画像付き）──────────────────
+const TAROT_CARDS = [
+  { name: "愚者",         meaning: "新しい始まり・自由・冒険への一歩",       img: `${CDN}/０　愚者_6b9eb6af.jpg` },
+  { name: "魔術師",       meaning: "意志の力・創造性・新しいスキル",         img: `${CDN}/1 魔術師_819eb5f1.jpg` },
+  { name: "女教皇",       meaning: "直感・内なる知恵・神秘",                 img: `${CDN}/2 女教皇_97e82b10.jpg` },
+  { name: "女帝",         meaning: "豊かさ・母性・自然の恵み",               img: `${CDN}/3 女帝_e1e3757b.jpg` },
+  { name: "皇帝",         meaning: "安定・権威・しっかりとした基盤",         img: `${CDN}/4 皇帝_108d1e3d.jpg` },
+  { name: "法王",         meaning: "伝統・精神的な導き・信頼",               img: `${CDN}/5 法王_b16f7202.jpg` },
+  { name: "恋人",         meaning: "愛・選択・調和",                         img: `${CDN}/6 恋人_016faf6a.jpg` },
+  { name: "戦車",         meaning: "勝利・意志の強さ・前進",                 img: `${CDN}/7 戦車_24bbd37a.jpg` },
+  { name: "力",           meaning: "内なる強さ・勇気・忍耐",                 img: `${CDN}/8 力_96a648e6.jpg` },
+  { name: "隠者",         meaning: "内省・孤独の時間・真実の探求",           img: `${CDN}/9 隠者_d6f6761c.jpg` },
+  { name: "運命の輪",     meaning: "変化・サイクル・運命の転換点",           img: `${CDN}/10 運命の輪_b97d9c62.jpg` },
+  { name: "正義",         meaning: "公平・バランス・真実",                   img: `${CDN}/11 正義_d8fc4190.jpg` },
+  { name: "吊るされた男", meaning: "手放す・新しい視点・待つ時間",           img: `${CDN}/12 吊るされた男_023b69e8.jpg` },
+  { name: "死",           meaning: "変容・終わりと始まり・再生",             img: `${CDN}/13 死_a2a54f92.jpg` },
+  { name: "節制",         meaning: "調和・バランス・穏やかな流れ",           img: `${CDN}/14 節制_3f2b0989.jpg` },
+  { name: "悪魔",         meaning: "束縛からの解放・欲望・影の部分",         img: `${CDN}/15 悪魔_5d4fd9e7.jpg` },
+  { name: "塔",           meaning: "突然の変化・古いものの崩壊・解放",       img: `${CDN}/16 塔_3e5602bf.jpg` },
+  { name: "星",           meaning: "希望・癒し・未来への光",                 img: `${CDN}/17 星_6e3f1989.jpg` },
+  { name: "月",           meaning: "無意識・夢・隠れた真実",                 img: `${CDN}/18 月_3a0248a8.jpg` },
+  { name: "太陽",         meaning: "喜び・成功・輝かしいエネルギー",         img: `${CDN}/19 太陽_047d3c83.jpg` },
+  { name: "審判",         meaning: "覚醒・再生・新しい使命",                 img: `${CDN}/20 審判_22b30394.jpg` },
+  { name: "世界",         meaning: "完成・達成・新たなサイクルの始まり",     img: `${CDN}/21 世界_cd3d166b.jpg` },
 ];
+
+// カードインデックスをランダムに並べ替えたシャッフル済みリストを生成
+function shuffleIndices(len: number): number[] {
+  const arr = Array.from({ length: len }, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 interface WaitingRoomProps {
   sessionType: "chat" | "voice";
   onSessionStarted?: () => void;
-  bgmUrl?: string; // MP3のURL（後でアップロード後に設定）
 }
 
-export function WaitingRoom({ sessionType, onSessionStarted, bgmUrl }: WaitingRoomProps) {
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [opacity, setOpacity] = useState(1);
-  const [isBgmPlaying, setIsBgmPlaying] = useState(false);
-  const [bgmError, setBgmError] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps) {
+  // ── カード表示 ──────────────────────────────────────────────────────────
+  const [shuffled] = useState(() => shuffleIndices(TAROT_CARDS.length));
+  const [shufflePos, setShufflePos] = useState(0);
+  const [cardOpacity, setCardOpacity] = useState(1);
+  const currentCard = TAROT_CARDS[shuffled[shufflePos]];
+
+  useEffect(() => {
+    const DISPLAY = 5000;  // 5秒表示
+    const FADE   = 1000;   // 1秒フェード
+
+    const fadeOut = setTimeout(() => {
+      setCardOpacity(0);
+      const next = setTimeout(() => {
+        setShufflePos((p) => (p + 1) % TAROT_CARDS.length);
+        setCardOpacity(1);
+      }, FADE);
+      return () => clearTimeout(next);
+    }, DISPLAY);
+
+    return () => clearTimeout(fadeOut);
+  }, [shufflePos]);
+
+  // ── BGM（3曲ランダム切替・フェードイン/アウト）──────────────────────
+  const [bgmEnabled, setBgmEnabled] = useState(false);
+  const [bgmStarted, setBgmStarted] = useState(false);
+  const audioRef    = useRef<HTMLAudioElement | null>(null);
+  const trackIdxRef = useRef<number>(-1);
+  const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ランダムな曲インデックスを選ぶ（直前と同じ曲は避ける）
+  const pickNextTrack = useCallback(() => {
+    const prev = trackIdxRef.current;
+    let next = Math.floor(Math.random() * BGM_TRACKS.length);
+    if (BGM_TRACKS.length > 1 && next === prev) {
+      next = (next + 1) % BGM_TRACKS.length;
+    }
+    return next;
+  }, []);
+
+  // フェードアウト → 次の曲へ
+  const fadeOutAndNext = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+
+    const startVol = audio.volume;
+    const step = startVol / 20; // 20ステップでフェードアウト
+    fadeTimerRef.current = setInterval(() => {
+      if (!audioRef.current) return;
+      const v = Math.max(0, audioRef.current.volume - step);
+      audioRef.current.volume = v;
+      if (v <= 0) {
+        clearInterval(fadeTimerRef.current!);
+        audioRef.current.pause();
+        playTrack(pickNextTrack());
+      }
+    }, 50); // 50ms × 20 = 1秒フェードアウト
+  }, [pickNextTrack]);
+
+  const playTrack = useCallback((idx: number) => {
+    trackIdxRef.current = idx;
+    const audio = new Audio(BGM_TRACKS[idx]);
+    audio.volume = 0;
+    audioRef.current = audio;
+
+    audio.addEventListener("ended", fadeOutAndNext);
+    audio.play().then(() => {
+      // フェードイン（0 → 0.25 を1秒かけて）
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+      const target = 0.25;
+      const step = target / 20;
+      fadeTimerRef.current = setInterval(() => {
+        if (!audioRef.current) return;
+        const v = Math.min(target, audioRef.current.volume + step);
+        audioRef.current.volume = v;
+        if (v >= target) clearInterval(fadeTimerRef.current!);
+      }, 50);
+    }).catch(() => {
+      // 自動再生ブロック時は静かに無視
+    });
+  }, [fadeOutAndNext]);
+
+  // BGM ON/OFF トグル
+  const toggleBgm = useCallback(async () => {
+    if (!bgmEnabled) {
+      // 初回 or 再開
+      setBgmEnabled(true);
+      if (!bgmStarted) {
+        setBgmStarted(true);
+        playTrack(pickNextTrack());
+      } else {
+        audioRef.current?.play().catch(() => {});
+        // フェードイン
+        const target = 0.25;
+        if (audioRef.current) audioRef.current.volume = 0;
+        if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+        const step = target / 20;
+        fadeTimerRef.current = setInterval(() => {
+          if (!audioRef.current) return;
+          const v = Math.min(target, audioRef.current.volume + step);
+          audioRef.current.volume = v;
+          if (v >= target) clearInterval(fadeTimerRef.current!);
+        }, 50);
+      }
+    } else {
+      // フェードアウトして一時停止
+      setBgmEnabled(false);
+      const audio = audioRef.current;
+      if (!audio) return;
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+      const startVol = audio.volume;
+      const step = startVol / 20;
+      fadeTimerRef.current = setInterval(() => {
+        if (!audioRef.current) return;
+        const v = Math.max(0, audioRef.current.volume - step);
+        audioRef.current.volume = v;
+        if (v <= 0) {
+          clearInterval(fadeTimerRef.current!);
+          audioRef.current.pause();
+        }
+      }, 50);
+    }
+  }, [bgmEnabled, bgmStarted, playTrack, pickNextTrack]);
+
+  // アンマウント時にBGM停止
+  useEffect(() => {
+    return () => {
+      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+      audioRef.current?.pause();
+    };
+  }, []);
 
   // ── マイクテスト（音声鑑定のみ）────────────────────────────────────────
   const [micStatus, setMicStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
   const [micVolume, setMicVolume] = useState(0);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const micStreamRef  = useRef<MediaStream | null>(null);
+  const analyserRef   = useRef<AnalyserNode | null>(null);
+  const animFrameRef  = useRef<number | null>(null);
 
-  // ── タロットカードのフェードイン・アウト ──────────────────────────────
-  useEffect(() => {
-    const DISPLAY_DURATION = 4000; // 4秒表示
-    const FADE_DURATION = 800; // 0.8秒フェード
-
-    let fadeOutTimer: ReturnType<typeof setTimeout>;
-    let nextCardTimer: ReturnType<typeof setTimeout>;
-
-    const startCycle = () => {
-      // フェードアウト開始
-      fadeOutTimer = setTimeout(() => {
-        setOpacity(0);
-        // フェードアウト完了後に次のカードへ
-        nextCardTimer = setTimeout(() => {
-          setCurrentCardIndex((prev) => (prev + 1) % TAROT_CARDS.length);
-          setOpacity(1);
-        }, FADE_DURATION);
-      }, DISPLAY_DURATION);
-    };
-
-    startCycle();
-    return () => {
-      clearTimeout(fadeOutTimer);
-      clearTimeout(nextCardTimer);
-    };
-  }, [currentCardIndex]);
-
-  // ── BGM再生 ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!bgmUrl) return;
-    const audio = new Audio(bgmUrl);
-    audio.loop = true;
-    audio.volume = 0.25;
-    audioRef.current = audio;
-
-    const tryPlay = async () => {
-      try {
-        await audio.play();
-        setIsBgmPlaying(true);
-      } catch {
-        setBgmError(false); // 自動再生ブロックは静かに無視
-      }
-    };
-    tryPlay();
-
-    return () => {
-      audio.pause();
-      audio.src = "";
-    };
-  }, [bgmUrl]);
-
-  const toggleBgm = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio || !bgmUrl) return;
-    if (isBgmPlaying) {
-      audio.pause();
-      setIsBgmPlaying(false);
-    } else {
-      try {
-        await audio.play();
-        setIsBgmPlaying(true);
-      } catch {
-        setBgmError(true);
-      }
-    }
-  }, [isBgmPlaying, bgmUrl]);
-
-  // ── マイクテスト ─────────────────────────────────────────────────────
   const startMicTest = useCallback(async () => {
     setMicStatus("testing");
     try {
@@ -128,30 +197,28 @@ export function WaitingRoom({ sessionType, onSessionStarted, bgmUrl }: WaitingRo
       micStreamRef.current = stream;
 
       const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaStreamSource(stream);
+      const source   = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let maxVolume = 0;
+      let maxVol = 0;
       let frames = 0;
 
       const measure = () => {
         analyser.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        const avg        = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
         const normalized = Math.min(100, (avg / 128) * 100);
         setMicVolume(normalized);
-        if (normalized > maxVolume) maxVolume = normalized;
+        if (normalized > maxVol) maxVol = normalized;
         frames++;
 
         if (frames < 120) {
-          // 約2秒間測定
           animFrameRef.current = requestAnimationFrame(measure);
         } else {
-          // 測定完了
-          setMicStatus(maxVolume > 2 ? "ok" : "error");
+          setMicStatus(maxVol > 2 ? "ok" : "error");
           setMicVolume(0);
           stream.getTracks().forEach((t) => t.stop());
           audioCtx.close();
@@ -170,23 +237,21 @@ export function WaitingRoom({ sessionType, onSessionStarted, bgmUrl }: WaitingRo
     };
   }, []);
 
-  const card = TAROT_CARDS[currentCardIndex];
-  const symbol = CARD_SYMBOLS[currentCardIndex];
-
+  // ── レンダリング ──────────────────────────────────────────────────────
   return (
-    <div className="waiting-room-container">
+    <div className="wr-root">
       {/* 背景の星エフェクト */}
-      <div className="stars-bg" aria-hidden="true">
-        {Array.from({ length: 20 }).map((_, i) => (
+      <div className="wr-stars" aria-hidden="true">
+        {Array.from({ length: 24 }).map((_, i) => (
           <span
             key={i}
-            className="star-dot"
+            className="wr-star"
             style={{
-              left: `${(i * 37 + 13) % 100}%`,
-              top: `${(i * 53 + 7) % 100}%`,
-              animationDelay: `${(i * 0.3) % 3}s`,
-              fontSize: `${8 + (i % 4) * 4}px`,
-              opacity: 0.3 + (i % 5) * 0.1,
+              left:           `${(i * 37 + 13) % 100}%`,
+              top:            `${(i * 53 + 7) % 100}%`,
+              animationDelay: `${(i * 0.31) % 3.5}s`,
+              fontSize:       `${8 + (i % 4) * 5}px`,
+              opacity:        0.25 + (i % 5) * 0.08,
             }}
           >
             ✦
@@ -195,291 +260,291 @@ export function WaitingRoom({ sessionType, onSessionStarted, bgmUrl }: WaitingRo
       </div>
 
       {/* メインコンテンツ */}
-      <div className="waiting-content">
+      <div className="wr-content">
         {/* ロゴ */}
-        <div className="waiting-logo">
-          <span className="logo-star">✦</span>
-          <span className="logo-text">angelique</span>
+        <div className="wr-logo">
+          <span style={{ color: "#c9a8a3", fontSize: "1.4rem" }}>✦</span>
+          <span className="wr-logo-text">angelique</span>
         </div>
 
-        {/* タロットカード表示 */}
+        {/* タロットカード */}
         <div
-          className="tarot-card-display"
-          style={{
-            opacity,
-            transition: "opacity 0.8s ease-in-out",
-          }}
+          className="wr-card"
+          style={{ opacity: cardOpacity, transition: "opacity 1s ease-in-out" }}
         >
-          <div className="tarot-symbol">{symbol}</div>
-          <div className="tarot-card-name">{card.name}</div>
-          <div className="tarot-card-meaning">{card.meaning}</div>
+          <img
+            src={currentCard.img}
+            alt={currentCard.name}
+            className="wr-card-img"
+            draggable={false}
+          />
+          <div className="wr-card-name">{currentCard.name}</div>
+          <div className="wr-card-meaning">{currentCard.meaning}</div>
         </div>
 
         {/* 待機メッセージ */}
-        <div className="waiting-message">
-          <div className="waiting-dots">
-            <span>占い師の準備ができるまでお待ちください</span>
-            <span className="dot-anim">...</span>
-          </div>
+        <div className="wr-message">
+          <span>占い師の準備ができるまでお待ちください</span>
+          <span className="wr-dots">...</span>
         </div>
 
-        {/* BGMコントロール（bgmUrlが設定されている場合のみ） */}
-        {bgmUrl && (
-          <button
-            onClick={toggleBgm}
-            className="bgm-toggle-btn"
-            aria-label={isBgmPlaying ? "BGMを停止" : "BGMを再生"}
-          >
-            {isBgmPlaying ? "🔊 BGM ON" : "🔇 BGM OFF"}
-          </button>
-        )}
+        {/* BGMコントロール */}
+        <button
+          onClick={toggleBgm}
+          className="wr-bgm-btn"
+          aria-label={bgmEnabled ? "BGMを停止" : "BGMを再生"}
+        >
+          {bgmEnabled ? "🔊 BGM ON" : "🔇 BGM OFF"}
+        </button>
 
         {/* 音声鑑定のみ：マイクテスト */}
         {sessionType === "voice" && (
-          <div className="mic-test-panel">
-            <div className="mic-test-title">🎤 マイクテスト</div>
+          <div className="wr-mic-panel">
+            <div className="wr-mic-title">🎤 マイクテスト</div>
             {micStatus === "idle" && (
-              <button onClick={startMicTest} className="mic-test-btn">
+              <button onClick={startMicTest} className="wr-mic-btn">
                 マイクをテストする
               </button>
             )}
             {micStatus === "testing" && (
-              <div className="mic-testing">
-                <div className="mic-volume-bar">
-                  <div
-                    className="mic-volume-fill"
-                    style={{ width: `${micVolume}%` }}
-                  />
+              <div className="wr-mic-testing">
+                <div className="wr-vol-bar">
+                  <div className="wr-vol-fill" style={{ width: `${micVolume}%` }} />
                 </div>
-                <p className="mic-testing-text">マイクの音量を測定中...</p>
+                <p className="wr-mic-sub">マイクの音量を測定中...</p>
               </div>
             )}
             {micStatus === "ok" && (
-              <div className="mic-ok">
-                <span className="mic-ok-icon">✓</span>
+              <div className="wr-mic-ok">
+                <span className="wr-mic-ok-icon">✓</span>
                 <span>マイクが正常に動作しています</span>
               </div>
             )}
             {micStatus === "error" && (
-              <div className="mic-error">
+              <div className="wr-mic-error">
                 <span>⚠ マイクが検出できませんでした</span>
-                <button onClick={startMicTest} className="mic-retry-btn">
-                  再試行
-                </button>
+                <button onClick={startMicTest} className="wr-mic-retry">再試行</button>
               </div>
             )}
           </div>
         )}
       </div>
 
+      {/* スタイル */}
       <style>{`
-        .waiting-room-container {
+        .wr-root {
           position: fixed;
           inset: 0;
-          background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 40%, #1a0a2e 100%);
+          background: linear-gradient(135deg, #12082a 0%, #251540 45%, #12082a 100%);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 50;
           overflow: hidden;
         }
-        .stars-bg {
+        .wr-stars {
           position: absolute;
           inset: 0;
           pointer-events: none;
         }
-        .star-dot {
+        .wr-star {
           position: absolute;
           color: #c9a8a3;
-          animation: twinkle 3s ease-in-out infinite;
+          animation: wr-twinkle 3.5s ease-in-out infinite;
         }
-        @keyframes twinkle {
-          0%, 100% { opacity: 0.2; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.3); }
+        @keyframes wr-twinkle {
+          0%, 100% { opacity: 0.15; transform: scale(1); }
+          50%       { opacity: 0.7;  transform: scale(1.4); }
         }
-        .waiting-content {
+        .wr-content {
           position: relative;
           z-index: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 1.5rem;
+          gap: 1.25rem;
           padding: 2rem 1.5rem;
-          max-width: 420px;
+          max-width: 380px;
           width: 100%;
           text-align: center;
         }
-        .waiting-logo {
+        .wr-logo {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          margin-bottom: 0.5rem;
         }
-        .logo-star {
-          color: #c9a8a3;
-          font-size: 1.5rem;
-        }
-        .logo-text {
+        .wr-logo-text {
           font-family: 'Cormorant Garamond', serif;
-          font-size: 1.8rem;
+          font-size: 1.75rem;
           color: #e8d5d0;
-          letter-spacing: 0.15em;
+          letter-spacing: 0.18em;
         }
-        .tarot-card-display {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(201, 168, 163, 0.3);
-          border-radius: 1.5rem;
-          padding: 2rem 2.5rem;
+        /* カード */
+        .wr-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.6rem;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(201,168,163,0.25);
+          border-radius: 1.25rem;
+          padding: 1.25rem 1.5rem 1.5rem;
           width: 100%;
-          backdrop-filter: blur(10px);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          backdrop-filter: blur(12px);
+          box-shadow: 0 8px 40px rgba(0,0,0,0.4);
         }
-        .tarot-symbol {
-          font-size: 3.5rem;
-          margin-bottom: 0.75rem;
-          display: block;
+        .wr-card-img {
+          width: 140px;
+          height: auto;
+          border-radius: 0.75rem;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+          object-fit: cover;
+          user-select: none;
         }
-        .tarot-card-name {
+        .wr-card-name {
           font-family: 'Cormorant Garamond', serif;
-          font-size: 1.6rem;
+          font-size: 1.4rem;
           color: #e8d5d0;
           font-weight: 600;
-          margin-bottom: 0.5rem;
-          letter-spacing: 0.1em;
+          letter-spacing: 0.12em;
+          margin-top: 0.25rem;
         }
-        .tarot-card-meaning {
+        .wr-card-meaning {
           font-family: 'Noto Sans JP', sans-serif;
-          font-size: 0.875rem;
+          font-size: 0.8rem;
           color: #c9a8a3;
-          line-height: 1.6;
+          line-height: 1.7;
         }
-        .waiting-message {
+        /* 待機メッセージ */
+        .wr-message {
           color: #e8d5d0;
           font-family: 'Noto Sans JP', sans-serif;
-          font-size: 0.9rem;
-          letter-spacing: 0.05em;
-        }
-        .waiting-dots {
+          font-size: 0.85rem;
+          letter-spacing: 0.04em;
           display: flex;
           align-items: center;
-          gap: 0.25rem;
+          gap: 0.2rem;
           justify-content: center;
         }
-        .dot-anim {
-          animation: dotPulse 1.5s ease-in-out infinite;
+        .wr-dots {
+          animation: wr-dot-pulse 1.6s ease-in-out infinite;
         }
-        @keyframes dotPulse {
+        @keyframes wr-dot-pulse {
           0%, 100% { opacity: 0.3; }
-          50% { opacity: 1; }
+          50%       { opacity: 1; }
         }
-        .bgm-toggle-btn {
-          background: rgba(201, 168, 163, 0.15);
-          border: 1px solid rgba(201, 168, 163, 0.4);
+        /* BGMボタン */
+        .wr-bgm-btn {
+          background: rgba(201,168,163,0.12);
+          border: 1px solid rgba(201,168,163,0.35);
           color: #c9a8a3;
           border-radius: 2rem;
-          padding: 0.4rem 1rem;
-          font-size: 0.8rem;
+          padding: 0.35rem 1rem;
+          font-size: 0.78rem;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: background 0.2s;
           font-family: 'Noto Sans JP', sans-serif;
         }
-        .bgm-toggle-btn:hover {
-          background: rgba(201, 168, 163, 0.25);
-        }
-        .mic-test-panel {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(201, 168, 163, 0.25);
+        .wr-bgm-btn:hover { background: rgba(201,168,163,0.22); }
+        /* マイクテスト */
+        .wr-mic-panel {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(201,168,163,0.2);
           border-radius: 1rem;
-          padding: 1.25rem 1.5rem;
+          padding: 1rem 1.25rem;
           width: 100%;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 0.75rem;
+          gap: 0.6rem;
         }
-        .mic-test-title {
+        .wr-mic-title {
           color: #e8d5d0;
           font-family: 'Noto Sans JP', sans-serif;
-          font-size: 0.9rem;
+          font-size: 0.85rem;
           font-weight: 500;
         }
-        .mic-test-btn {
-          background: rgba(201, 168, 163, 0.2);
-          border: 1px solid rgba(201, 168, 163, 0.5);
+        .wr-mic-btn {
+          background: rgba(201,168,163,0.18);
+          border: 1px solid rgba(201,168,163,0.45);
           color: #e8d5d0;
           border-radius: 0.5rem;
-          padding: 0.5rem 1.25rem;
-          font-size: 0.875rem;
+          padding: 0.45rem 1.2rem;
+          font-size: 0.82rem;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: background 0.2s;
           font-family: 'Noto Sans JP', sans-serif;
         }
-        .mic-test-btn:hover {
-          background: rgba(201, 168, 163, 0.35);
-        }
-        .mic-testing {
+        .wr-mic-btn:hover { background: rgba(201,168,163,0.3); }
+        .wr-mic-testing {
           width: 100%;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.4rem;
         }
-        .mic-volume-bar {
+        .wr-vol-bar {
           width: 100%;
-          height: 8px;
+          height: 7px;
           background: rgba(255,255,255,0.1);
           border-radius: 4px;
           overflow: hidden;
         }
-        .mic-volume-fill {
+        .wr-vol-fill {
           height: 100%;
           background: linear-gradient(90deg, #c9a8a3, #e8d5d0);
           border-radius: 4px;
           transition: width 0.1s ease;
         }
-        .mic-testing-text {
+        .wr-mic-sub {
           color: #c9a8a3;
-          font-size: 0.8rem;
+          font-size: 0.75rem;
           font-family: 'Noto Sans JP', sans-serif;
         }
-        .mic-ok {
+        .wr-mic-ok {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.45rem;
           color: #a8d5b5;
-          font-size: 0.875rem;
+          font-size: 0.82rem;
           font-family: 'Noto Sans JP', sans-serif;
         }
-        .mic-ok-icon {
+        .wr-mic-ok-icon {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 20px;
-          height: 20px;
+          width: 18px;
+          height: 18px;
           background: #a8d5b5;
           color: #1a2e1f;
           border-radius: 50%;
-          font-size: 0.7rem;
+          font-size: 0.65rem;
           font-weight: bold;
         }
-        .mic-error {
+        .wr-mic-error {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 0.5rem;
+          gap: 0.4rem;
           color: #e8a8a3;
-          font-size: 0.875rem;
+          font-size: 0.82rem;
           font-family: 'Noto Sans JP', sans-serif;
         }
-        .mic-retry-btn {
-          background: rgba(232, 168, 163, 0.2);
-          border: 1px solid rgba(232, 168, 163, 0.4);
+        .wr-mic-retry {
+          background: rgba(232,168,163,0.18);
+          border: 1px solid rgba(232,168,163,0.4);
           color: #e8a8a3;
           border-radius: 0.5rem;
-          padding: 0.3rem 0.75rem;
-          font-size: 0.8rem;
+          padding: 0.28rem 0.7rem;
+          font-size: 0.75rem;
           cursor: pointer;
           font-family: 'Noto Sans JP', sans-serif;
+        }
+        /* スマホ対応 */
+        @media (max-width: 420px) {
+          .wr-content { padding: 1.5rem 1rem; gap: 1rem; }
+          .wr-card-img { width: 110px; }
+          .wr-card-name { font-size: 1.2rem; }
         }
       `}</style>
     </div>
