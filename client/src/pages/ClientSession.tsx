@@ -7,12 +7,14 @@ import { ja } from "date-fns/locale";
 import { toast } from "sonner";
 import LinkifiedText from "@/components/LinkifiedText";
 import VoiceCall from "@/components/VoiceCall";
+import { WaitingRoom } from "@/components/WaitingRoom";
 
 type Message = {
   id: number;
   sessionId: number;
   sender: "admin" | "client" | "system";
   content: string;
+  imageUrl?: string | null;
   createdAt: Date;
 };
 
@@ -47,8 +49,15 @@ export default function ClientSession() {
   const [showExtensionUI, setShowExtensionUI] = useState(false);
   const [extensionWaiting, setExtensionWaiting] = useState(false);
   const [alertFired, setAlertFired] = useState(false);
+  // ウェイティングルーム状態
+  const [showWaitingRoom, setShowWaitingRoom] = useState(true);
+  // 画像アップロード
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const uploadImageMutation = trpc.messages.uploadImage.useMutation();
 
   const { data: sessionData, isLoading, isError, refetch: refetchSession } = trpc.sessions.getByToken.useQuery(
     { token: token ?? "" },
@@ -67,10 +76,22 @@ export default function ClientSession() {
       const secs = sessionData.remainingSeconds ?? 0;
       setRemainingSeconds(secs);
       setTimerStartedAt(sessionData.timerStartedAt ?? null);
-      if (sessionData.status === "active") setTimerStatus("active");
-      else if (sessionData.status === "paused") setTimerStatus("paused");
-      else if (sessionData.status === "completed") setTimerStatus("ended");
-      else if (sessionData.status === "cancelled") setTimerStatus("ended"); // キャンセル済みは終了として表示
+      if (sessionData.status === "active") {
+        setTimerStatus("active");
+        setShowWaitingRoom(false); // すでにアクティブならウェイティングルームをスキップ
+      } else if (sessionData.status === "paused") {
+        setTimerStatus("paused");
+        setShowWaitingRoom(false);
+      } else if (sessionData.status === "completed") {
+        setTimerStatus("ended");
+        setShowWaitingRoom(false);
+      } else if (sessionData.status === "cancelled") {
+        setTimerStatus("ended");
+        setShowWaitingRoom(false);
+      } else {
+        // scheduled: ウェイティングルームを表示
+        setShowWaitingRoom(true);
+      }
     }
   }, [sessionData]);
 
@@ -90,6 +111,10 @@ export default function ClientSession() {
     socket.on("connect", () => {
       setConnected(true);
       socket.emit("join_session", { sessionId: session.id, role: "client", token });
+      // ウェイティングルーム中なら管理者に通知
+      if (session.status === "scheduled") {
+        socket.emit("waiting_room_join", { sessionId: session.id });
+      }
     });
     socket.on("disconnect", () => setConnected(false));
 
@@ -124,6 +149,12 @@ export default function ClientSession() {
     socket.on("session_ended", () => {
       setTimerStatus("ended");
       setShowExtensionUI(false);
+    });
+
+    // 管理者がセッション開始 → ウェイティングルームを終了
+    socket.on("session_started", () => {
+      setShowWaitingRoom(false);
+      toast.success("占い師が準備できました。セッションを開始します。");
     });
 
     socketRef.current = socket;
@@ -169,6 +200,47 @@ export default function ClientSession() {
     });
     setInputText("");
   }, [inputText, session]);
+
+  // 画像送信
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !session) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("画像は5MB以下にしてください");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const base64Data = ev.target?.result as string;
+        const result = await uploadImageMutation.mutateAsync({
+          sessionId: session.id,
+          sender: "client",
+          base64Data,
+          mimeType: file.type,
+          fileName: file.name,
+        });
+        // 画像URLをSocket.ioで送信
+        socketRef.current?.emit("send_message", {
+          sessionId: session.id,
+          sender: "client",
+          content: "📷 画像を送信しました",
+          imageUrl: result.url,
+          imageKey: result.key,
+        });
+        setUploadingImage(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast.error("画像の送信に失敗しました");
+      setUploadingImage(false);
+    }
+    // inputをリセット
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  }, [session, uploadImageMutation]);
 
   const handleExtensionRequest = useCallback((minutes: number) => {
     if (!session) return;
@@ -289,10 +361,7 @@ export default function ClientSession() {
               ページを再読み込み
             </button>
             <button
-              onClick={() => {
-                // react-queryのrefetchでセッションデータを再取得する
-                refetchSession();
-              }}
+              onClick={() => { refetchSession(); }}
               style={{
                 background: "#f3e7e5",
                 color: "#6b5b58",
@@ -312,6 +381,16 @@ export default function ClientSession() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // ── ウェイティングルーム表示 ──────────────────────────────────────────
+  if (showWaitingRoom) {
+    return (
+      <WaitingRoom
+        sessionType={session.sessionType}
+        onSessionStarted={() => setShowWaitingRoom(false)}
+      />
     );
   }
 
@@ -544,13 +623,46 @@ export default function ClientSession() {
                       angelique
                     </div>
                   )}
-                  <div
-                    className={
-                      msg.sender === "client" ? "chat-bubble-admin" : "chat-bubble-client"
-                    }
-                  >
-                    {msg.content}
-                  </div>
+                  {/* 画像メッセージ */}
+                  {msg.imageUrl ? (
+                    <div>
+                      <img
+                        src={msg.imageUrl}
+                        alt="送信画像"
+                        style={{
+                          maxWidth: "240px",
+                          borderRadius: "12px",
+                          cursor: "pointer",
+                          border: "1px solid #d4bfbb",
+                        }}
+                        onClick={() => window.open(msg.imageUrl!, "_blank")}
+                      />
+                      {/* お客様は画像を保存できる */}
+                      <div style={{ marginTop: "4px" }}>
+                        <a
+                          href={msg.imageUrl}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: "11px",
+                            color: "#c9a8a3",
+                            textDecoration: "underline",
+                          }}
+                        >
+                          ↓ 画像を保存
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className={
+                        msg.sender === "client" ? "chat-bubble-admin" : "chat-bubble-client"
+                      }
+                    >
+                      {msg.content}
+                    </div>
+                  )}
                   <div
                     style={{
                       fontSize: "10px",
@@ -579,6 +691,33 @@ export default function ClientSession() {
             paddingBottom: "max(12px, env(safe-area-inset-bottom))",
           }}
         >
+          {/* 画像添付ボタン */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={handleImageSelect}
+          />
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            disabled={uploadingImage || (timerStatus === "ended" && !extensionWaiting)}
+            style={{
+              background: "transparent",
+              border: "1px solid #d4bfbb",
+              borderRadius: "8px",
+              padding: "8px 10px",
+              fontSize: "18px",
+              cursor: "pointer",
+              color: "#c9a8a3",
+              alignSelf: "flex-end",
+              opacity: uploadingImage ? 0.5 : 1,
+            }}
+            title="画像を送信"
+            aria-label="画像を送信"
+          >
+            {uploadingImage ? "⏳" : "📷"}
+          </button>
           <textarea
             className="angelique-input flex-1"
             value={inputText}

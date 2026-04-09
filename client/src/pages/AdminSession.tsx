@@ -11,11 +11,20 @@ import { io, Socket } from "socket.io-client";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
+// ── スタンプ定義 ──────────────────────────────────────────────────────────
+const STAMPS = [
+  { label: "少々お待ちください🙏", text: "少々お待ちください🙏" },
+  { label: "承知しました✨", text: "承知しました✨" },
+  { label: "ありがとうございました🌙", text: "ありがとうございました🌙" },
+  { label: "確認中です⭐", text: "確認中です⭐" },
+];
+
 type Message = {
   id: number;
   sessionId: number;
   sender: "admin" | "client" | "system";
   content: string;
+  imageUrl?: string | null;
   createdAt: Date;
 };
 
@@ -60,6 +69,11 @@ export default function AdminSession() {
   const [carryoverMinutes, setCarryoverMinutes] = useState("");
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [extensionNotification, setExtensionNotification] = useState<{ minutes: number } | null>(null);
+  // 画像アップロード
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  // クライアント待機通知
+  const [clientWaiting, setClientWaiting] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -93,6 +107,7 @@ export default function AdminSession() {
     onError: (e) => toast.error(e.message),
   });
   const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
+  const uploadImageMutation = trpc.messages.uploadImage.useMutation();
 
   // Initialize session state
   useEffect(() => {
@@ -150,6 +165,12 @@ export default function AdminSession() {
       toast.info(`お客様が${minutes}分の延長を申請しました`);
     });
 
+    // クライアントがウェイティングルームに入ったことを通知
+    socket.on("client_waiting", () => {
+      setClientWaiting(true);
+      toast.info("お客様がウェイティングルームで待機中です", { duration: 6000 });
+    });
+
     socketRef.current = socket;
     return () => { socket.disconnect(); };
   }, [sessionId, isAuthenticated]);
@@ -199,14 +220,12 @@ export default function AdminSession() {
   }, [messages]);
 
   function triggerChime(type: "5min" | "1min") {
-    // Play a single chime sound (no loop)
     try {
       const ctx = new AudioContext();
       const gain = ctx.createGain();
       gain.connect(ctx.destination);
 
       if (type === "5min") {
-        // Two-note chime: C5 → E5
         const notes = [523.25, 659.25];
         notes.forEach((freq, i) => {
           const osc = ctx.createOscillator();
@@ -223,7 +242,6 @@ export default function AdminSession() {
         setTimeout(() => setScreenFlash(false), 2000);
         toast.warning("残り5分です！", { duration: 5000 });
       } else {
-        // Three-note chime: E5 → G5 → C6
         const notes = [659.25, 783.99, 1046.5];
         notes.forEach((freq, i) => {
           const osc = ctx.createOscillator();
@@ -262,6 +280,14 @@ export default function AdminSession() {
     });
   }, [session, sessionId]);
 
+  // セッション開始通知（ウェイティングルームのクライアントに通知）
+  const handleStartSession = useCallback(() => {
+    socketRef.current?.emit("session_start_notify", { sessionId });
+    setClientWaiting(false);
+    toast.success("お客様にセッション開始を通知しました");
+    handleStartTimer();
+  }, [sessionId, handleStartTimer]);
+
   const handlePauseTimer = useCallback(() => {
     const elapsed = timerStartedAt ? Math.floor((Date.now() - timerStartedAt) / 1000) : 0;
     const current = Math.max(0, remainingSeconds - elapsed);
@@ -299,6 +325,55 @@ export default function AdminSession() {
     });
     setInputText("");
   }, [inputText, sessionId]);
+
+  // スタンプ送信
+  const handleSendStamp = useCallback((text: string) => {
+    socketRef.current?.emit("send_message", {
+      sessionId,
+      sender: "admin",
+      content: text,
+    });
+    toast.success("送信しました");
+  }, [sessionId]);
+
+  // 画像送信
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("画像は5MB以下にしてください");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const base64Data = ev.target?.result as string;
+        const result = await uploadImageMutation.mutateAsync({
+          sessionId,
+          sender: "admin",
+          base64Data,
+          mimeType: file.type,
+          fileName: file.name,
+        });
+        socketRef.current?.emit("send_message", {
+          sessionId,
+          sender: "admin",
+          content: "📷 画像を送信しました",
+          imageUrl: result.url,
+          imageKey: result.key,
+        });
+        setUploadingImage(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast.error("画像の送信に失敗しました");
+      setUploadingImage(false);
+    }
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  }, [sessionId, uploadImageMutation]);
 
   const handleSendExtensionLink = useCallback((minutes: number) => {
     const settings = storeSettings ?? [];
@@ -399,7 +474,25 @@ export default function AdminSession() {
               {(session?.carryoverMinutes ?? 0) > 0 && ` (+${session?.carryoverMinutes}分繰越)`}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* クライアント待機通知バッジ */}
+            {clientWaiting && timerStatus === "idle" && (
+              <div
+                style={{
+                  background: "#fff3e0",
+                  border: "1px solid #f57c00",
+                  borderRadius: "8px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  color: "#e65100",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                🔔 お客様が待機中
+              </div>
+            )}
             <div
               style={{
                 width: "8px",
@@ -451,13 +544,30 @@ export default function AdminSession() {
                           {session?.clientName}
                         </div>
                       )}
-                      <div
-                        className={
-                          msg.sender === "admin" ? "chat-bubble-admin" : "chat-bubble-client"
-                        }
-                      >
-                        {msg.content}
-                      </div>
+                      {/* 画像メッセージ */}
+                      {(msg as any).imageUrl ? (
+                        <div>
+                          <img
+                            src={(msg as any).imageUrl}
+                            alt="送信画像"
+                            style={{
+                              maxWidth: "200px",
+                              borderRadius: "12px",
+                              cursor: "pointer",
+                              border: "1px solid #d4bfbb",
+                            }}
+                            onClick={() => window.open((msg as any).imageUrl, "_blank")}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className={
+                            msg.sender === "admin" ? "chat-bubble-admin" : "chat-bubble-client"
+                          }
+                        >
+                          {msg.content}
+                        </div>
+                      )}
                       <div
                         style={{
                           fontSize: "10px",
@@ -475,11 +585,78 @@ export default function AdminSession() {
               <div ref={chatEndRef} />
             </div>
 
+            {/* スタンプパネル */}
+            <div
+              style={{
+                borderTop: "1px solid #f3e7e5",
+                padding: "8px 12px",
+                display: "flex",
+                gap: "6px",
+                flexWrap: "wrap",
+                background: "#fdfaf9",
+              }}
+            >
+              {STAMPS.map((stamp) => (
+                <button
+                  key={stamp.text}
+                  onClick={() => handleSendStamp(stamp.text)}
+                  style={{
+                    background: "#f3e7e5",
+                    border: "1px solid #d4bfbb",
+                    borderRadius: "20px",
+                    padding: "4px 12px",
+                    fontSize: "12px",
+                    color: "#6b5b58",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.15s",
+                    fontFamily: "'Noto Sans JP', sans-serif",
+                  }}
+                  onMouseOver={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "#e8d5d0";
+                  }}
+                  onMouseOut={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "#f3e7e5";
+                  }}
+                  title={`ワンタップ送信: ${stamp.text}`}
+                >
+                  {stamp.label}
+                </button>
+              ))}
+            </div>
+
             {/* Input */}
             <div
               className="p-3 flex gap-2"
               style={{ borderTop: "1px solid #f3e7e5" }}
             >
+              {/* 画像添付ボタン */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleImageSelect}
+              />
+              <button
+                onClick={() => imageInputRef.current?.click()}
+                disabled={uploadingImage}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #d4bfbb",
+                  borderRadius: "8px",
+                  padding: "8px 10px",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  color: "#c9a8a3",
+                  alignSelf: "flex-end",
+                  opacity: uploadingImage ? 0.5 : 1,
+                }}
+                title="画像を送信"
+                aria-label="画像を送信"
+              >
+                {uploadingImage ? "⏳" : "📷"}
+              </button>
               <textarea
                 className="angelique-input flex-1"
                 value={inputText}
@@ -533,9 +710,36 @@ export default function AdminSession() {
               {/* Timer Controls */}
               <div className="flex flex-col gap-2 mt-4">
                 {timerStatus === "idle" && (
-                  <button className="angelique-btn justify-center" onClick={handleStartTimer}>
-                    ▶ タイマー開始
-                  </button>
+                  <>
+                    {/* セッション開始（ウェイティングルームのクライアントに通知） */}
+                    <button
+                      className="angelique-btn justify-center"
+                      onClick={handleStartSession}
+                      style={{
+                        justifyContent: "center",
+                        background: clientWaiting ? "#c9a8a3" : undefined,
+                        position: "relative",
+                      }}
+                    >
+                      {clientWaiting && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "-4px",
+                            right: "-4px",
+                            width: "10px",
+                            height: "10px",
+                            background: "#f57c00",
+                            borderRadius: "50%",
+                          }}
+                        />
+                      )}
+                      ▶ セッション開始
+                    </button>
+                    <p style={{ fontSize: "10px", color: "#9e8480", marginTop: "2px" }}>
+                      ※ お客様の待機画面が自動でチャット画面に切り替わります
+                    </p>
+                  </>
                 )}
                 {timerStatus === "active" && (
                   <button className="angelique-btn-outline justify-center" onClick={handlePauseTimer}>
@@ -560,11 +764,11 @@ export default function AdminSession() {
                   🔔 延長申請
                 </div>
                 <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "12px" }}>
-                  お客様が{extensionNotification.minutes}分の延長を申請しました
+                  お客様が延長を申請しました
                 </p>
                 <button
-                  className="angelique-btn justify-center w-full"
-                  onClick={() => handleExtensionResume(extensionNotification.minutes)}
+                  className="angelique-btn justify-center"
+                  onClick={() => handleExtensionResume(10)}
                   style={{ width: "100%", justifyContent: "center" }}
                 >
                   ▶ 延長して再開

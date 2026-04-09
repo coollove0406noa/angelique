@@ -26,6 +26,7 @@ import {
   updateSession,
 } from "./db";
 import { sendSessionInviteEmail } from "./mailer";
+import { storagePut } from "./storage";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -306,6 +307,30 @@ const messagesRouter = router({
     .input(z.object({ sessionId: z.number() }))
     .query(async ({ input }) => {
       return getMessagesBySession(input.sessionId);
+    }),
+
+  uploadImage: publicProcedure
+    .input(
+      z.object({
+        sessionId: z.number(),
+        sender: z.enum(["admin", "client"]),
+        // base64 encoded image data
+        base64Data: z.string(),
+        mimeType: z.string().default("image/jpeg"),
+        fileName: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Decode base64 and upload to S3
+      const base64 = input.base64Data.replace(/^data:[^;]+;base64,/, "");
+      const buffer = Buffer.from(base64, "base64");
+      if (buffer.length > 5 * 1024 * 1024) {
+        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "画像は5MB以下にしてください" });
+      }
+      const ext = input.mimeType.split("/")[1] || "jpg";
+      const key = `session-images/${input.sessionId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      return { url, key };
     }),
 });
 

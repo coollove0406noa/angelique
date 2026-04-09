@@ -29,10 +29,24 @@ export function initSocketIO(httpServer: HttpServer) {
       socket.to(room).emit("user_joined", { role });
     });
 
-    // Chat message
-    socket.on("send_message", async ({ sessionId, sender, content }) => {
+    // Waiting room: client joined waiting room (for admin to know)
+    socket.on("waiting_room_join", ({ sessionId }) => {
+      const room = `session_${sessionId}`;
+      socket.to(room).emit("client_waiting", { sessionId });
+      console.log(`[Socket.io] Client waiting in room ${room}`);
+    });
+
+    // Admin starts session from waiting room -> notify client to transition
+    socket.on("session_start_notify", ({ sessionId }) => {
+      const room = `session_${sessionId}`;
+      io?.to(room).emit("session_started", { sessionId });
+      console.log(`[Socket.io] session_start_notify emitted for room ${room}`);
+    });
+
+    // Chat message (supports optional image)
+    socket.on("send_message", async ({ sessionId, sender, content, imageUrl, imageKey }) => {
       try {
-        const msg = await createMessage({ sessionId, sender, content });
+        const msg = await createMessage({ sessionId, sender, content, imageUrl, imageKey });
         const room = `session_${sessionId}`;
         io?.to(room).emit("new_message", msg);
       } catch (err) {

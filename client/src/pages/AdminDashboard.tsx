@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
@@ -7,6 +7,7 @@ import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useLocation } from "wouter";
+import { QRCodeSVG } from "qrcode.react";
 
 type Session = {
   id: number;
@@ -231,6 +232,103 @@ export default function AdminDashboard() {
   );
 }
 
+function downloadQRAsPng(svgEl: SVGSVGElement | null, clientName: string | null) {
+  if (!svgEl) return;
+  const serializer = new XMLSerializer();
+  const svgStr = serializer.serializeToString(svgEl);
+  const img = new Image();
+  const size = 220;
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = size + 40;
+    canvas.height = size + 40;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 20, 20, size, size);
+    const link = document.createElement("a");
+    link.download = `qr_${clientName ?? "session"}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+  img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgStr)));
+}
+
+function QRModal({ url, clientName, onClose }: { url: string; clientName: string | null; onClose: () => void }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(107,91,88,0.35)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="angelique-card p-8 w-full max-w-xs mx-4 text-center">
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: "20px",
+            color: "#6b5b58",
+            marginBottom: "4px",
+          }}
+        >
+          QRコード
+        </div>
+        <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "20px" }}>
+          {clientName} 様のセッションURL
+        </p>
+        <div
+          style={{
+            display: "inline-flex",
+            padding: "12px",
+            background: "#fff",
+            borderRadius: "12px",
+            border: "1px solid #d4bfbb",
+            marginBottom: "16px",
+          }}
+        >
+          <QRCodeSVG value={url} size={180} ref={svgRef} />
+        </div>
+        <p
+          style={{
+            fontSize: "10px",
+            color: "#9e8480",
+            wordBreak: "break-all",
+            marginBottom: "16px",
+            lineHeight: 1.5,
+          }}
+        >
+          {url}
+        </p>
+        <div className="flex gap-2 justify-center flex-wrap">
+          <button
+            className="angelique-btn-outline"
+            style={{ padding: "6px 16px", fontSize: "12px" }}
+            onClick={() => {
+              navigator.clipboard.writeText(url);
+            }}
+          >
+            URLをコピー
+          </button>
+          <button
+            className="angelique-btn-outline"
+            style={{ padding: "6px 16px", fontSize: "12px" }}
+            onClick={() => downloadQRAsPng(svgRef.current, clientName)}
+          >
+            PNG保存
+          </button>
+          <button
+            className="angelique-btn-outline"
+            style={{ padding: "6px 16px", fontSize: "12px" }}
+            onClick={onClose}
+          >
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SessionCard({
   session,
   onOpen,
@@ -244,6 +342,8 @@ function SessionCard({
 }) {
   const isActive = session.status === "active" || session.status === "paused";
   const remaining = getRemainingDisplay(session);
+  const [showQR, setShowQR] = useState(false);
+  const clientUrl = `${window.location.origin}/session/${session.clientToken}`;
 
   return (
     <div
@@ -293,7 +393,24 @@ function SessionCard({
         </div>
       )}
 
+      {showQR && (
+        <QRModal
+          url={clientUrl}
+          clientName={session.clientName}
+          onClose={() => setShowQR(false)}
+        />
+      )}
+
       <div className="flex gap-2">
+        {/* QRコードボタン（全ステータスで表示） */}
+        <button
+          className="angelique-btn-outline"
+          onClick={() => setShowQR(true)}
+          style={{ padding: "8px 12px", fontSize: "13px" }}
+          title="QRコードを表示"
+        >
+          QR
+        </button>
         {session.status === "scheduled" && (
           <button
             className="angelique-btn"

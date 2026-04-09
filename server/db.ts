@@ -159,6 +159,7 @@ export async function getAllSessions() {
       scheduledAt: sessions.scheduledAt,
       durationMinutes: sessions.durationMinutes,
       carryoverMinutes: sessions.carryoverMinutes,
+      sessionType: sessions.sessionType,
       status: sessions.status,
       startedAt: sessions.startedAt,
       endedAt: sessions.endedAt,
@@ -192,6 +193,7 @@ export async function getSessionByToken(token: string) {
       scheduledAt: sessions.scheduledAt,
       durationMinutes: sessions.durationMinutes,
       carryoverMinutes: sessions.carryoverMinutes,
+      sessionType: sessions.sessionType,
       status: sessions.status,
       startedAt: sessions.startedAt,
       endedAt: sessions.endedAt,
@@ -270,10 +272,18 @@ export async function createMessage(data: {
   sessionId: number;
   sender: "admin" | "client" | "system";
   content: string;
+  imageUrl?: string | null;
+  imageKey?: string | null;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(messages).values(data);
+  const result = await db.insert(messages).values({
+    sessionId: data.sessionId,
+    sender: data.sender,
+    content: data.content,
+    imageUrl: data.imageUrl ?? null,
+    imageKey: data.imageKey ?? null,
+  });
   const id = result[0].insertId as number;
   const rows = await db.select().from(messages).where(eq(messages.id, id)).limit(1);
   return rows[0];
