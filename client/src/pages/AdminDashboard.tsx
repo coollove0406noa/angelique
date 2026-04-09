@@ -15,6 +15,7 @@ type Session = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
+  sessionType: "chat" | "voice";
   status: string;
   startedAt: Date | null;
   remainingSeconds: number | null;
@@ -148,7 +149,7 @@ export default function AdminDashboard() {
               {activeSessions.map((s) => (
                 <SessionCard
                   key={s.id}
-                  session={s as Session}
+                  session={s as unknown as Session}
                   onOpen={() => navigate(`/admin/session/${s.id}`)}
                   onStart={() => startSession.mutate({ id: s.id })}
                   isStarting={startSession.isPending}
@@ -168,7 +169,7 @@ export default function AdminDashboard() {
               {scheduledSessions.map((s) => (
                 <SessionCard
                   key={s.id}
-                  session={s as Session}
+                  session={s as unknown as Session}
                   onOpen={() => navigate(`/admin/session/${s.id}`)}
                   onStart={() => startSession.mutate({ id: s.id })}
                   isStarting={startSession.isPending}
@@ -252,11 +253,24 @@ function SessionCard({
       }}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-3 mb-1">
+        <div className="flex items-center gap-3 mb-1 flex-wrap">
           <span style={{ fontSize: "15px", fontWeight: 500, color: "#6b5b58" }}>
             {session.clientName}
           </span>
           <StatusBadge status={session.status} />
+          <span
+            style={{
+              fontSize: "11px",
+              padding: "2px 8px",
+              borderRadius: "8px",
+              background: session.sessionType === "voice" ? "#e8f5e9" : "#f3e7e5",
+              color: session.sessionType === "voice" ? "#2e7d32" : "#9e8480",
+              border: session.sessionType === "voice" ? "1px solid #a5d6a7" : "1px solid #d4bfbb",
+              fontWeight: 500,
+            }}
+          >
+            {session.sessionType === "voice" ? "🎙 音声" : "💬 チャット"}
+          </span>
         </div>
         <div style={{ fontSize: "13px", color: "#9e8480" }}>
           {format(new Date(session.scheduledAt), "M/d (E) HH:mm", { locale: ja })} ·{" "}

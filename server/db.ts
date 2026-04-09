@@ -215,6 +215,7 @@ export async function createSession(data: {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes?: number;
+  sessionType?: "chat" | "voice";
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -224,6 +225,7 @@ export async function createSession(data: {
     scheduledAt: data.scheduledAt,
     durationMinutes: data.durationMinutes,
     carryoverMinutes: data.carryoverMinutes ?? 0,
+    sessionType: data.sessionType ?? "chat",
     status: "scheduled",
   });
   return result[0].insertId as number;

@@ -15,6 +15,13 @@
       "when": 1775750322711,
       "tag": "0001_loving_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775762831630,
+      "tag": "0002_quick_reaper",
+      "breakpoints": true
     }
   ]
 }

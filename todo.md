@@ -71,3 +71,17 @@
 - [x] /session/:tokenでOAuthリダイレクトが絶対に発火しないことをサーバーテストで検証
 - [x] ClientSessionのエラーUIで「セッションに戻る」を実際のURL再取得・再フェッチに修正
 - [x] getByTokenがdeleted以外（cancelled/scheduled/completed）は有効であることをテスト追加（18テスト全通過）
+
+## Agora RTC 音声通話機能
+- [x] Agora RTC SDKをインストール（agora-rtc-sdk-ng）
+- [x] DBスキーマ拡張：sessionsテーブルにsessionType（chat/voice）カラム追加
+- [x] Agoraトークン生成エンドポイント（tRPC: agora.getToken）を実装
+- [x] 予約作成フォームに鑑定方法選択（チャット/音声）を追加
+- [x] 管理者セッション画面に音声通話UIを追加（通話開始・ミュート・終話）
+- [x] お客様セッション画面に音声通話UIを追加（通話開始・ミュート・終話）
+- [x] チャットと音声の併用（音声中もテキスト送信可能）
+- [x] スマホ対応デザインの改善（お客様画面）
+- [x] Vitestテスト追加（agora.getToken）
+
+## スマホ対応（お客様画面）
+- [x] お客様画面のモバイルレイアウト最適化（横スクロール防止・safe-area-inset対応・タップターゲット拡大・フォントサイズ16pxで自動ズーム防止）

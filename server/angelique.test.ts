@@ -280,3 +280,17 @@ describe("carryover.save", () => {
     expect(db.updateClient).toHaveBeenCalledWith(1, { carryoverMinutes: 20 }); // 5 + 15
   });
 });
+
+// ── Agora token generation ─────────────────────────────────────────────────
+describe("agora.getToken", () => {
+  it("returns a token for a valid sessionId", async () => {
+    const caller = appRouter.createCaller(createCtx());
+    // AGORA_APP_ID is set; token generation should succeed
+    const result = await caller.agora.getToken({ channelName: "session-1", uid: 42 });
+    expect(result).toHaveProperty("token");
+    expect(typeof result.token).toBe("string");
+    expect(result.token.length).toBeGreaterThan(0);
+    expect(result).toHaveProperty("appId");
+    expect(result.appId).toBe(process.env.AGORA_APP_ID ?? "");
+  });
+});

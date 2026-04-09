@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
 import LinkifiedText from "@/components/LinkifiedText";
+import VoiceCall from "@/components/VoiceCall";
 
 type Message = {
   id: number;
@@ -22,6 +23,7 @@ type SessionInfo = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
+  sessionType: "chat" | "voice";
   status: string;
   startedAt: Date | null;
   remainingSeconds: number | null;
@@ -316,7 +318,7 @@ export default function ClientSession() {
   return (
     <div
       className="min-h-screen flex flex-col"
-      style={{ background: "#f9f5f4" }}
+      style={{ background: "#f9f5f4", overflowX: "hidden", maxWidth: "100vw" }}
     >
       {/* Header */}
       <header
@@ -396,6 +398,17 @@ export default function ClientSession() {
         )}
       </div>
 
+      {/* Voice Call Panel (voice sessions only) */}
+      {session?.sessionType === "voice" && (
+        <div style={{ padding: "12px 16px", background: "#f9f5f4", borderBottom: "1px solid #d4bfbb" }}>
+          <VoiceCall
+            sessionId={session.id}
+            role="client"
+            isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+          />
+        </div>
+      )}
+
       {/* Extension UI */}
       {showExtensionUI && (
         <div
@@ -450,7 +463,7 @@ export default function ClientSession() {
                     key={mins}
                     className="angelique-btn"
                     onClick={() => handleExtensionRequest(mins)}
-                    style={{ padding: "8px 16px", fontSize: "13px" }}
+                    style={{ padding: "12px 20px", fontSize: "14px", minWidth: "80px" }}
                   >
                     {mins}分延長
                   </button>
@@ -563,6 +576,7 @@ export default function ClientSession() {
             background: "#fff",
             position: "sticky",
             bottom: 0,
+            paddingBottom: "max(12px, env(safe-area-inset-bottom))",
           }}
         >
           <textarea
@@ -575,16 +589,16 @@ export default function ClientSession() {
                 handleSendMessage();
               }
             }}
-            placeholder="メッセージを入力（Enterで送信）"
+            placeholder="メッセージを入力"
             rows={2}
-            style={{ resize: "none" }}
+            style={{ resize: "none", fontSize: "16px" }}
             disabled={timerStatus === "ended" && !extensionWaiting}
           />
           <button
             className="angelique-btn"
             onClick={handleSendMessage}
             disabled={!inputText.trim() || (timerStatus === "ended" && !extensionWaiting)}
-            style={{ alignSelf: "flex-end", padding: "10px 16px" }}
+            style={{ alignSelf: "flex-end", padding: "12px 20px", minWidth: "56px", fontSize: "15px" }}
           >
             送信
           </button>

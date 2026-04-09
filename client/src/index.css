@@ -345,3 +345,54 @@
 ::-webkit-scrollbar-track { background: #f9f5f4; }
 ::-webkit-scrollbar-thumb { background: #d4bfbb; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #c9a8a3; }
+
+/* ── Voice Call Panel ─────────────────────────────────────────────────────── */
+.voice-call-panel {
+  background: linear-gradient(135deg, #f9f5f4 0%, #f3e7e5 100%);
+  border: 1.5px solid #d4bfbb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.voice-call-btn-start {
+  background-color: #4caf7d !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-family: 'Noto Sans JP', sans-serif !important;
+  font-size: 0.875rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.voice-call-btn-start:hover:not(:disabled) {
+  background-color: #3d9a6a !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(76, 175, 125, 0.3) !important;
+}
+
+.voice-call-btn-start:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.voice-call-btn-end {
+  border-radius: 8px !important;
+  font-family: 'Noto Sans JP', sans-serif !important;
+  font-size: 0.875rem !important;
+}
+
+.voice-call-btn-mute {
+  border-color: #d4bfbb !important;
+  color: #6b5b58 !important;
+  border-radius: 8px !important;
+  font-family: 'Noto Sans JP', sans-serif !important;
+  font-size: 0.875rem !important;
+  background: transparent !important;
+}
+
+.voice-call-btn-mute.muted {
+  background-color: #f3e7e5 !important;
+  border-color: #c9a8a3 !important;
+  color: #c9a8a3 !important;
+}

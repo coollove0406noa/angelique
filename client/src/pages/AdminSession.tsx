@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
+import VoiceCall from "@/components/VoiceCall";
 import LinkifiedText from "@/components/LinkifiedText";
 import AdminLogin from "./AdminLogin";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
@@ -25,6 +26,7 @@ type Session = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
+  sessionType: "chat" | "voice";
   status: string;
   startedAt: Date | null;
   endedAt: Date | null;
@@ -505,6 +507,14 @@ export default function AdminSession() {
 
           {/* Right Panel: Timer + Controls */}
           <div className="flex flex-col gap-4" style={{ width: "280px", minWidth: "280px" }}>
+            {/* Voice Call Panel (voice sessions only) */}
+            {session?.sessionType === "voice" && (
+              <VoiceCall
+                sessionId={sessionId}
+                role="admin"
+                isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+              />
+            )}
             {/* Timer */}
             <div className="angelique-card p-6 text-center">
               <div style={{ fontSize: "12px", color: "#9e8480", marginBottom: "8px" }}>残り時間</div>

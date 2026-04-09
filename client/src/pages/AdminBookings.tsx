@@ -24,6 +24,7 @@ type Session = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
+  sessionType: "chat" | "voice";
   status: string;
   clientName: string | null;
   clientEmail: string | null;
@@ -63,6 +64,7 @@ export default function AdminBookings() {
     scheduledAt: "",
     durationMinutes: "60",
     carryoverMinutes: "0",
+    sessionType: "chat" as "chat" | "voice",
     sendEmail: true,
   });
 
@@ -136,7 +138,7 @@ export default function AdminBookings() {
   });
 
   function resetSessionForm() {
-    setSessionForm({ clientId: "", scheduledAt: "", durationMinutes: "60", carryoverMinutes: "0", sendEmail: true });
+    setSessionForm({ clientId: "", scheduledAt: "", durationMinutes: "60", carryoverMinutes: "0", sessionType: "chat", sendEmail: true });
     setEditSession(null);
   }
 
@@ -156,6 +158,7 @@ export default function AdminBookings() {
       scheduledAt: new Date(sessionForm.scheduledAt).toISOString(),
       durationMinutes: Number(sessionForm.durationMinutes),
       carryoverMinutes: Number(sessionForm.carryoverMinutes),
+      sessionType: sessionForm.sessionType,
       sendEmail: sessionForm.sendEmail,
       origin: window.location.origin,
     });
@@ -325,6 +328,64 @@ export default function AdminBookings() {
                           onChange={(e) => setSessionForm(f => ({ ...f, carryoverMinutes: e.target.value }))}
                           min={0}
                         />
+                      </div>
+                    </div>
+                    {/* 鑑定方法選択 */}
+                    <div className="mb-4">
+                      <label className="angelique-label">鑑定方法</label>
+                      <div className="flex gap-3 mt-1">
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "10px 18px",
+                            borderRadius: "12px",
+                            border: sessionForm.sessionType === "chat" ? "2px solid #c9a8a3" : "1.5px solid #d4bfbb",
+                            background: sessionForm.sessionType === "chat" ? "#f3e7e5" : "#f9f5f4",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            color: "#6b5b58",
+                            fontWeight: sessionForm.sessionType === "chat" ? 600 : 400,
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="sessionType"
+                            value="chat"
+                            checked={sessionForm.sessionType === "chat"}
+                            onChange={() => setSessionForm(f => ({ ...f, sessionType: "chat" }))}
+                            style={{ accentColor: "#c9a8a3" }}
+                          />
+                          💬 チャット鑑定
+                        </label>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "10px 18px",
+                            borderRadius: "12px",
+                            border: sessionForm.sessionType === "voice" ? "2px solid #4caf7d" : "1.5px solid #d4bfbb",
+                            background: sessionForm.sessionType === "voice" ? "#e8f5e9" : "#f9f5f4",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            color: "#6b5b58",
+                            fontWeight: sessionForm.sessionType === "voice" ? 600 : 400,
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="sessionType"
+                            value="voice"
+                            checked={sessionForm.sessionType === "voice"}
+                            onChange={() => setSessionForm(f => ({ ...f, sessionType: "voice" }))}
+                            style={{ accentColor: "#4caf7d" }}
+                          />
+                          🎙 音声鑑定（Agora）
+                        </label>
                       </div>
                     </div>
                     <div className="mb-6 flex items-center gap-2">

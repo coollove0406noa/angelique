@@ -185,6 +185,7 @@ const sessionsRouter = router({
         carryoverMinutes: z.number().min(0).default(0),
         sendEmail: z.boolean().default(true),
         origin: z.string().optional(),
+        sessionType: z.enum(["chat", "voice"]).default("chat"),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -195,6 +196,7 @@ const sessionsRouter = router({
         scheduledAt: new Date(input.scheduledAt),
         durationMinutes: input.durationMinutes,
         carryoverMinutes: input.carryoverMinutes,
+        sessionType: input.sessionType,
       });
 
       // Apply pending carryover
@@ -379,6 +381,67 @@ const settingsRouter = router({
     }),
 });
 
+// ── Agora RTC ─────────────────────────────────────────────────────────────
+
+const AGORA_APP_ID = "f5ca2b3f054945b5a9fffd388a26366a";
+const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || "";
+
+const agoraRouter = router({
+  getToken: publicProcedure
+    .input(
+      z.object({
+        channelName: z.string(),
+        uid: z.number().optional().default(0),
+        role: z.enum(["publisher", "subscriber"]).default("publisher"),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // If no certificate is set, return null token (testing mode)
+      if (!AGORA_APP_CERTIFICATE) {
+        return {
+          token: null,
+          appId: AGORA_APP_ID,
+          channelName: input.channelName,
+          uid: input.uid,
+          note: "No certificate set, using testing mode (no token)",
+        };
+      }
+
+      try {
+        const { RtcTokenBuilder, RtcRole } = await import("agora-access-token");
+        const role = input.role === "publisher" ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+        const expireTime = 3600; // 1 hour
+        const currentTime = Math.floor(Date.now() / 1000);
+        const privilegeExpireTime = currentTime + expireTime;
+
+        const token = RtcTokenBuilder.buildTokenWithUid(
+          AGORA_APP_ID,
+          AGORA_APP_CERTIFICATE,
+          input.channelName,
+          input.uid,
+          role,
+          privilegeExpireTime
+        );
+
+        return {
+          token,
+          appId: AGORA_APP_ID,
+          channelName: input.channelName,
+          uid: input.uid,
+        };
+      } catch (error) {
+        console.error("[Agora] Token generation failed:", error);
+        return {
+          token: null,
+          appId: AGORA_APP_ID,
+          channelName: input.channelName,
+          uid: input.uid,
+          error: "Token generation failed",
+        };
+      }
+    }),
+});
+
 // ── Email resend ───────────────────────────────────────────────────────────
 
 const emailRouter = router({
@@ -422,6 +485,7 @@ export const appRouter = router({
   carryover: carryoverRouter,
   settings: settingsRouter,
   email: emailRouter,
+  agora: agoraRouter,
 });
 
 export type AppRouter = typeof appRouter;

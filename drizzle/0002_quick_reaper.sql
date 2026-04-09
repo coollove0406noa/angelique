@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `sessionType` enum('chat','voice') DEFAULT 'chat' NOT NULL;
