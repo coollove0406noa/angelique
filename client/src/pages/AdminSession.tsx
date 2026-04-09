@@ -74,6 +74,7 @@ export default function AdminSession() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   // クライアント待機通知
   const [clientWaiting, setClientWaiting] = useState(false);
+  const [clientEndedByClient, setClientEndedByClient] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -99,9 +100,19 @@ export default function AdminSession() {
   });
   const addExtensionMutation = trpc.sessions.addExtensionTime.useMutation({
     onSuccess: (data) => {
-      setRemainingSeconds(data.remainingSeconds);
-      setTimerStartedAt(data.timerStartedAt);
+      const newRemaining = data.remainingSeconds;
+      const newTimerStartedAt = data.timerStartedAt;
+      setRemainingSeconds(newRemaining);
+      setTimerStartedAt(newTimerStartedAt);
       setTimerStatus("active");
+      alert5mFiredRef.current = false;
+      alert1mFiredRef.current = false;
+      // DBに保存された正確な値でSocket.ioに通知（二重加算を防ぐ）
+      socketRef.current?.emit("extension_resume", {
+        sessionId,
+        remainingSeconds: newRemaining,
+        timerStartedAt: newTimerStartedAt,
+      });
       toast.success("延長しました");
     },
     onError: (e) => toast.error(e.message),
@@ -166,11 +177,15 @@ export default function AdminSession() {
     });
 
     // クライアントがウェイティングルームに入ったことを通知
-    socket.on("client_waiting", () => {
+     socket.on("client_waiting", () => {
       setClientWaiting(true);
       toast.info("お客様がウェイティングルームで待機中です", { duration: 6000 });
     });
-
+    // お客様がセッションを終了した通知
+    socket.on("client_ended_session", () => {
+      setClientEndedByClient(true);
+      toast.warning("お客様がセッションを終了しました", { duration: 10000 });
+    });
     socketRef.current = socket;
     return () => { socket.disconnect(); };
   }, [sessionId, isAuthenticated]);
@@ -377,12 +392,18 @@ export default function AdminSession() {
 
   const handleSendExtensionLink = useCallback((minutes: number) => {
     const settings = storeSettings ?? [];
-    const urlMap: Record<number, string> = {
-      10: settings.find((s) => s.key === "stores_url_10min")?.value ?? "",
-      20: settings.find((s) => s.key === "stores_url_20min")?.value ?? "",
-      30: settings.find((s) => s.key === "stores_url_30min")?.value ?? "",
+    const sType = session?.sessionType ?? "chat";
+    // 鑑定方法（chat/voice）に応じたキーを使用
+    const keyMap: Record<number, string> = {
+      10: sType === "voice" ? "stores_url_voice_10min" : "stores_url_chat_10min",
+      30: sType === "voice" ? "stores_url_voice_30min" : "stores_url_chat_30min",
     };
-    const url = urlMap[minutes];
+    // 新キーで検索、なければ旧キー（移行期間のフォールバック）で検索
+    const fallbackKey: Record<number, string> = { 10: "stores_url_10min", 30: "stores_url_30min" };
+    const url =
+      settings.find((s) => s.key === keyMap[minutes])?.value ||
+      settings.find((s) => s.key === fallbackKey[minutes])?.value ||
+      "";
     if (!url) {
       toast.error("延長URLが設定されていません。設定画面でURLを登録してください。");
       return;
@@ -395,16 +416,16 @@ export default function AdminSession() {
     });
     setShowExtendModal(false);
     toast.success(`${minutes}分延長URLを送信しました`);
-  }, [storeSettings, sessionId]);
+  }, [storeSettings, sessionId, session]);
 
   const handleExtensionResume = useCallback((minutes: number) => {
     setExtensionNotification(null);
+    // addExtensionMutation がDBを更新し、onSuccess でremainingSeconds/timerStartedAtを受け取る
+    // socket の extension_resume は addExtensionMutation の onSuccess 後に emit する
     addExtensionMutation.mutate({ id: sessionId, addMinutes: minutes });
-    socketRef.current?.emit("extension_resume", {
-      sessionId,
-      remainingSeconds: remainingSeconds + minutes * 60,
-    });
-  }, [sessionId, remainingSeconds]);
+    // 注意: extension_resume の remainingSeconds は addExtensionMutation の onSuccess で更新された値を使う
+    // ここでは二重加算を防ぐため emit しない（onSuccess で emit する）
+  }, [sessionId]);
 
   const handleCarryoverSave = useCallback(() => {
     const mins = Number(carryoverMinutes);
@@ -423,7 +444,8 @@ export default function AdminSession() {
   const handleCompleteSession = useCallback(() => {
     if (confirm("セッションを完了しますか？")) {
       updateSessionMutation.mutate({ id: sessionId, status: "completed", endedAt: new Date().toISOString() });
-      socketRef.current?.emit("session_ended", { sessionId, carryoverMinutes: 0 });
+      // お客様画面に終了を通知
+      socketRef.current?.emit("carryover_saved", { sessionId, minutes: 0 });
       toast.success("セッションを完了しました");
       navigate("/admin");
     }
@@ -475,6 +497,24 @@ export default function AdminSession() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* お客様がセッションを終了した通知 */}
+            {clientEndedByClient && (
+              <div
+                style={{
+                  background: "#fce4ec",
+                  border: "1px solid #e91e63",
+                  borderRadius: "8px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  color: "#880e4f",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                🔔 お客様がセッションを終了しました
+              </div>
+            )}
             {/* クライアント待機通知バッジ */}
             {clientWaiting && timerStatus === "idle" && (
               <div
@@ -565,7 +605,7 @@ export default function AdminSession() {
                             msg.sender === "admin" ? "chat-bubble-admin" : "chat-bubble-client"
                           }
                         >
-                          {msg.content}
+                          <LinkifiedText text={msg.content} />
                         </div>
                       )}
                       <div
@@ -807,7 +847,10 @@ export default function AdminSession() {
             {/* Client URL */}
             {session && (
               <div className="angelique-card p-4">
-                <div style={{ fontSize: "12px", color: "#9e8480", marginBottom: "8px" }}>お客様URL</div>
+                <div style={{ fontSize: "12px", color: "#9e8480", marginBottom: "4px" }}>お客様URL</div>
+                <p style={{ fontSize: "11px", color: "#c9a8a3", marginBottom: "8px" }}>
+                  ↓ このURLをお客様に送ってください
+                </p>
                 <div
                   style={{
                     fontSize: "11px",
@@ -859,7 +902,7 @@ export default function AdminSession() {
               延長URLをお客様のチャットに送信します
             </p>
             <div className="flex flex-col gap-3">
-              {[10, 20, 30].map((mins) => (
+              {[10, 30].map((mins) => (
                 <button
                   key={mins}
                   className="angelique-btn justify-center"

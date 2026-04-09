@@ -43,14 +43,21 @@ export default function ClientSession() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [session, setSession] = useState<SessionInfo | null>(null);
+  // タイマーはサーバーから受け取った基準時刻と残り秒数で計算
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerStatus, setTimerStatus] = useState<"idle" | "active" | "paused" | "ended">("idle");
   const [showExtensionUI, setShowExtensionUI] = useState(false);
   const [extensionWaiting, setExtensionWaiting] = useState(false);
-  const [alertFired, setAlertFired] = useState(false);
+  const [alert5mFired, setAlert5mFired] = useState(false);
+  const [alert1mFired, setAlert1mFired] = useState(false);
   // ウェイティングルーム状態
   const [showWaitingRoom, setShowWaitingRoom] = useState(true);
+  // セッション終了メッセージ
+  const [sessionEndedMessage, setSessionEndedMessage] = useState(false);
+  // お客様側終了確認ダイアログ
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [clientEnded, setClientEnded] = useState(false);
   // 画像アップロード
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -78,16 +85,18 @@ export default function ClientSession() {
       setTimerStartedAt(sessionData.timerStartedAt ?? null);
       if (sessionData.status === "active") {
         setTimerStatus("active");
-        setShowWaitingRoom(false); // すでにアクティブならウェイティングルームをスキップ
+        setShowWaitingRoom(false);
       } else if (sessionData.status === "paused") {
         setTimerStatus("paused");
         setShowWaitingRoom(false);
       } else if (sessionData.status === "completed") {
         setTimerStatus("ended");
         setShowWaitingRoom(false);
+        setSessionEndedMessage(true);
       } else if (sessionData.status === "cancelled") {
         setTimerStatus("ended");
         setShowWaitingRoom(false);
+        setSessionEndedMessage(true);
       } else {
         // scheduled: ウェイティングルームを表示
         setShowWaitingRoom(true);
@@ -127,6 +136,8 @@ export default function ClientSession() {
       setTimerStartedAt(tsa);
       if (status === "active") {
         setTimerStatus("active");
+        // タイマー開始 = ウェイティングルームを終了
+        setShowWaitingRoom(false);
         setShowExtensionUI(false);
         setExtensionWaiting(false);
       } else if (status === "paused") {
@@ -149,6 +160,7 @@ export default function ClientSession() {
     socket.on("session_ended", () => {
       setTimerStatus("ended");
       setShowExtensionUI(false);
+      setSessionEndedMessage(true);
     });
 
     // 管理者がセッション開始 → ウェイティングルームを終了
@@ -161,18 +173,27 @@ export default function ClientSession() {
     return () => { socket.disconnect(); };
   }, [session?.id, token]);
 
-  // Timer countdown
+  // Timer countdown - サーバー基準時刻から実経過時間を計算
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
     if (timerStatus === "active" && timerStartedAt !== null) {
-      timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
-        const current = Math.max(0, remainingSeconds - elapsed);
-        setRemainingSeconds(current);
+      // remainingSecondsはサーバーから受け取った「timerStartedAt時点での残り秒数」
+      // 実際の残り = remainingSeconds - (現在時刻 - timerStartedAt) / 1000
+      const baseRemaining = remainingSeconds;
+      const baseTime = timerStartedAt;
 
-        if (current <= ALERT_THRESHOLD && current > 0 && !alertFired) {
-          setAlertFired(true);
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - baseTime) / 1000);
+        const current = Math.max(0, baseRemaining - elapsed);
+
+        if (current <= ALERT_THRESHOLD && current > ALERT_THRESHOLD - 2 && !alert5mFired) {
+          setAlert5mFired(true);
+          toast.warning("⚠ 残り5分です");
+        }
+        if (current <= 60 && current > 58 && !alert1mFired) {
+          setAlert1mFired(true);
+          toast.warning("⚠ 残り1分です！");
         }
 
         if (current <= 0) {
@@ -223,7 +244,6 @@ export default function ClientSession() {
           mimeType: file.type,
           fileName: file.name,
         });
-        // 画像URLをSocket.ioで送信
         socketRef.current?.emit("send_message", {
           sessionId: session.id,
           sender: "client",
@@ -238,21 +258,20 @@ export default function ClientSession() {
       toast.error("画像の送信に失敗しました");
       setUploadingImage(false);
     }
-    // inputをリセット
     if (imageInputRef.current) imageInputRef.current.value = "";
   }, [session, uploadImageMutation]);
 
+  // 延長ボタン → 別タブで決済URLを開く
   const handleExtensionRequest = useCallback((minutes: number) => {
     if (!session) return;
     const settings = storeSettings ?? [];
     const urlMap: Record<number, string> = {
       10: settings.find((s) => s.key === "stores_url_10min")?.value ?? "",
-      20: settings.find((s) => s.key === "stores_url_20min")?.value ?? "",
       30: settings.find((s) => s.key === "stores_url_30min")?.value ?? "",
     };
     const url = urlMap[minutes];
     if (url) {
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     } else {
       toast.info("延長URLが設定されていません。占い師にご連絡ください。");
     }
@@ -264,8 +283,15 @@ export default function ClientSession() {
     socketRef.current?.emit("extension_requested", { sessionId: session.id, minutes: 0 });
     toast.success("占い師に通知しました。しばらくお待ちください。");
   }, [session]);
+  // お客様側からセッションを終了する
+  const handleClientEndSession = useCallback(() => {
+    if (!session) return;
+    socketRef.current?.emit("client_end_session", { sessionId: session.id });
+    setClientEnded(true);
+    setShowEndConfirm(false);
+  }, [session]);
 
-  // Display timer
+  // Display timer - サーバー基準時刻から計算
   const displaySeconds = (() => {
     if (timerStatus === "active" && timerStartedAt) {
       const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
@@ -314,9 +340,8 @@ export default function ClientSession() {
             background: "#ffffff",
             borderRadius: "16px",
             border: "1px solid #d4bfbb",
-            boxShadow: "0 4px 24px rgba(107,91,88,0.08)",
             padding: "40px 32px",
-            maxWidth: "400px",
+            maxWidth: "360px",
             width: "100%",
             textAlign: "center",
           }}
@@ -394,12 +419,94 @@ export default function ClientSession() {
     );
   }
 
+  // ── お客様自身が終了した画面 ─────────────────────────────────────────
+  if (clientEnded) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "#f9f5f4", padding: "24px" }}
+      >
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            border: "1px solid #d4bfbb",
+            padding: "48px 32px",
+            maxWidth: "360px",
+            width: "100%",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "26px",
+              color: "#c9a8a3",
+              letterSpacing: "2px",
+              marginBottom: "24px",
+            }}
+          >
+            ✶ angelique
+          </div>
+          <div style={{ fontSize: "40px", marginBottom: "16px" }}>🌙</div>
+          <p style={{ color: "#6b5b58", fontSize: "18px", fontWeight: 600, marginBottom: "12px", fontFamily: "'Cormorant Garamond', serif" }}>
+            ありがとうございました
+          </p>
+          <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8 }}>
+            またのご利用をお待ちしております。
+          </p>
+        </div>
+      </div>
+    );
+  }
+  // ── セッション終了画面 ──────────────────────────────────────────────
+  if (sessionEndedMessage && messages.length === 0 && timerStatus === "ended") {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "#f9f5f4", padding: "24px" }}
+      >
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            border: "1px solid #d4bfbb",
+            padding: "48px 32px",
+            maxWidth: "360px",
+            width: "100%",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "26px",
+              color: "#c9a8a3",
+              letterSpacing: "2px",
+              marginBottom: "24px",
+            }}
+          >
+            ✦ angelique
+          </div>
+          <div style={{ fontSize: "40px", marginBottom: "16px" }}>🌙</div>
+          <p style={{ color: "#6b5b58", fontSize: "18px", fontWeight: 600, marginBottom: "12px", fontFamily: "'Cormorant Garamond', serif" }}>
+            鑑定が終了しました
+          </p>
+          <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8 }}>
+            ありがとうございました。<br />
+            またのご利用をお待ちしております。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-screen flex flex-col"
       style={{ background: "#f9f5f4", overflowX: "hidden", maxWidth: "100vw" }}
     >
-      {/* Header */}
+      {/* Header - 固定 */}
       <header
         style={{
           background: "#ffffff",
@@ -409,6 +516,9 @@ export default function ClientSession() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
         }}
       >
         <div
@@ -421,22 +531,106 @@ export default function ClientSession() {
         >
           ✦ angelique
         </div>
-        <div className="flex items-center gap-2">
-          <div
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <div
+              style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                background: connected ? "#4caf50" : "#ccc",
+              }}
+            />
+            <span style={{ fontSize: "11px", color: "#9e8480" }}>
+              {connected ? "接続中" : "接続待ち"}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowEndConfirm(true)}
             style={{
-              width: "7px",
-              height: "7px",
-              borderRadius: "50%",
-              background: connected ? "#4caf50" : "#ccc",
+              background: "transparent",
+              border: "1px solid #d4bfbb",
+              borderRadius: "8px",
+              padding: "5px 12px",
+              fontSize: "12px",
+              color: "#9e8480",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
-          />
-          <span style={{ fontSize: "11px", color: "#9e8480" }}>
-            {connected ? "接続中" : "接続待ち"}
-          </span>
+          >
+            終了
+          </button>
         </div>
       </header>
+      {/* 終了確認ダイアログ */}
+      {showEndConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              border: "1px solid #d4bfbb",
+              padding: "32px 24px",
+              maxWidth: "320px",
+              width: "100%",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🌙</div>
+            <p style={{ color: "#6b5b58", fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
+              セッションを終了しますか？
+            </p>
+            <p style={{ color: "#9e8480", fontSize: "13px", marginBottom: "24px", lineHeight: 1.7 }}>
+              終了すると元の画面に戻れなくなります。
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #d4bfbb",
+                  borderRadius: "8px",
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  color: "#9e8480",
+                  cursor: "pointer",
+                  flex: 1,
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleClientEndSession}
+                style={{
+                  background: "#c9a8a3",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  flex: 1,
+                }}
+              >
+                終了する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Timer Bar */}
+      {/* Timer Bar - 固定（スクロールしても常に表示） */}
       <div
         style={{
           background: isWarning ? "#fff3e0" : "#f3e7e5",
@@ -444,6 +638,9 @@ export default function ClientSession() {
           padding: "12px 16px",
           textAlign: "center",
           transition: "background 0.5s",
+          position: "sticky",
+          top: "53px",
+          zIndex: 40,
         }}
       >
         {timerStatus === "idle" && (
@@ -470,16 +667,25 @@ export default function ClientSession() {
             )}
           </div>
         )}
-        {timerStatus === "ended" && !showExtensionUI && (
+        {timerStatus === "ended" && !showExtensionUI && !sessionEndedMessage && (
           <p style={{ fontSize: "13px", color: "#c62828" }}>
             セッション時間が終了しました
           </p>
         )}
       </div>
 
-      {/* Voice Call Panel (voice sessions only) */}
+      {/* Voice Call Panel (voice sessions only) - 固定 */}
       {session?.sessionType === "voice" && (
-        <div style={{ padding: "12px 16px", background: "#f9f5f4", borderBottom: "1px solid #d4bfbb" }}>
+        <div
+          style={{
+            padding: "12px 16px",
+            background: "#f9f5f4",
+            borderBottom: "1px solid #d4bfbb",
+            position: "sticky",
+            top: "101px",
+            zIndex: 35,
+          }}
+        >
           <VoiceCall
             sessionId={session.id}
             role="client"
@@ -488,13 +694,17 @@ export default function ClientSession() {
         </div>
       )}
 
-      {/* Extension UI */}
+      {/* Extension UI - 固定（タイマーの下に固定表示） */}
       {showExtensionUI && (
         <div
           style={{
             background: "#fff",
             borderBottom: "1px solid #d4bfbb",
             padding: "16px",
+            position: "sticky",
+            top: session?.sessionType === "voice" ? "149px" : "101px",
+            zIndex: 38,
+            boxShadow: "0 2px 8px rgba(107,91,88,0.08)",
           }}
         >
           {extensionWaiting ? (
@@ -537,7 +747,7 @@ export default function ClientSession() {
                 延長をご希望の場合は、下記よりお手続きください
               </p>
               <div className="flex gap-2 justify-center flex-wrap">
-                {[10, 20, 30].map((mins) => (
+                {[10, 30].map((mins) => (
                   <button
                     key={mins}
                     className="angelique-btn"
@@ -562,6 +772,29 @@ export default function ClientSession() {
         </div>
       )}
 
+      {/* セッション終了バナー（チャット履歴がある場合） */}
+      {sessionEndedMessage && messages.length > 0 && (
+        <div
+          style={{
+            background: "#f3e7e5",
+            borderBottom: "1px solid #d4bfbb",
+            padding: "16px",
+            textAlign: "center",
+            position: "sticky",
+            top: session?.sessionType === "voice" ? "149px" : "101px",
+            zIndex: 38,
+          }}
+        >
+          <div style={{ fontSize: "20px", marginBottom: "6px" }}>🌙</div>
+          <p style={{ color: "#6b5b58", fontSize: "15px", fontWeight: 600, marginBottom: "4px" }}>
+            鑑定が終了しました
+          </p>
+          <p style={{ color: "#9e8480", fontSize: "13px" }}>
+            ありがとうございました。またのご利用をお待ちしております。
+          </p>
+        </div>
+      )}
+
       {/* Chat Area */}
       <div
         className="flex-1 flex flex-col"
@@ -570,7 +803,7 @@ export default function ClientSession() {
         {/* Messages */}
         <div
           className="flex-1 overflow-y-auto p-4 flex flex-col gap-3"
-          style={{ minHeight: 0, height: "calc(100vh - 280px)" }}
+          style={{ minHeight: 0 }}
         >
           {/* Welcome message */}
           {messages.length === 0 && timerStatus === "idle" && (
@@ -660,7 +893,7 @@ export default function ClientSession() {
                         msg.sender === "client" ? "chat-bubble-admin" : "chat-bubble-client"
                       }
                     >
-                      {msg.content}
+                      <LinkifiedText text={msg.content} />
                     </div>
                   )}
                   <div
@@ -688,6 +921,7 @@ export default function ClientSession() {
             background: "#fff",
             position: "sticky",
             bottom: 0,
+            zIndex: 30,
             paddingBottom: "max(12px, env(safe-area-inset-bottom))",
           }}
         >

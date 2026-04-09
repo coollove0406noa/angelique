@@ -58,8 +58,8 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
   const currentCard = TAROT_CARDS[shuffled[shufflePos]];
 
   useEffect(() => {
-    const DISPLAY = 5000;  // 5秒表示
-    const FADE   = 1000;   // 1秒フェード
+    const DISPLAY = 15000; // 15秒表示
+    const FADE   = 2000;   // 2秒フェード
 
     const fadeOut = setTimeout(() => {
       setCardOpacity(0);
@@ -270,7 +270,7 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         {/* タロットカード */}
         <div
           className="wr-card"
-          style={{ opacity: cardOpacity, transition: "opacity 1s ease-in-out" }}
+          style={{ opacity: cardOpacity, transition: "opacity 2s ease-in-out" }}
         >
           <img
             src={currentCard.img}

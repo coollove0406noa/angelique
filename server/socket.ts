@@ -127,18 +127,20 @@ export function initSocketIO(httpServer: HttpServer) {
     });
 
     // Extension resume (admin resumes timer after extension)
-    socket.on("extension_resume", async ({ sessionId, remainingSeconds }) => {
-      const now = Date.now();
+    // remainingSeconds と timerStartedAt は addExtensionMutation の onSuccess から渡される正確な値
+    socket.on("extension_resume", async ({ sessionId, remainingSeconds, timerStartedAt }) => {
+      // timerStartedAt が渡された場合はそれを使用、なければ現在時刻
+      const startedAt = timerStartedAt ?? Date.now();
       await updateSession(sessionId, {
         status: "active",
-        timerStartedAt: now,
+        timerStartedAt: startedAt,
         remainingSeconds,
       });
       const room = `session_${sessionId}`;
       io?.to(room).emit("timer_update", {
         status: "active",
         remainingSeconds,
-        timerStartedAt: now,
+        timerStartedAt: startedAt,
       });
     });
 
@@ -146,6 +148,20 @@ export function initSocketIO(httpServer: HttpServer) {
     socket.on("carryover_saved", ({ sessionId, minutes }) => {
       const room = `session_${sessionId}`;
       io?.to(room).emit("session_ended", { sessionId, carryoverMinutes: minutes });
+    });
+
+    // Session ended by admin (direct completion without carryover)
+    socket.on("session_ended", ({ sessionId }) => {
+      const room = `session_${sessionId}`;
+      io?.to(room).emit("session_ended", { sessionId, carryoverMinutes: 0 });
+    });
+
+    // Session ended by client (customer-initiated)
+    socket.on("client_end_session", ({ sessionId }) => {
+      const room = `session_${sessionId}`;
+      // Notify everyone in the room (admin sees the notification)
+      io?.to(room).emit("client_ended_session", { sessionId });
+      console.log(`[Socket.io] client_end_session for room ${room}`);
     });
 
     socket.on("disconnect", () => {

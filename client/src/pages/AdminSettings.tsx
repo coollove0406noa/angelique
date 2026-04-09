@@ -8,9 +8,11 @@ import { useAdminAuth } from "@/contexts/AdminAuthContext";
 export default function AdminSettings() {
   const { isAuthenticated, isLoading, refetch: refetchAuth } = useAdminAuth();
 
-  const [storesUrl10, setStoresUrl10] = useState("");
-  const [storesUrl20, setStoresUrl20] = useState("");
-  const [storesUrl30, setStoresUrl30] = useState("");
+  // 4種類の延長URL
+  const [chatUrl10, setChatUrl10] = useState("");
+  const [chatUrl30, setChatUrl30] = useState("");
+  const [voiceUrl10, setVoiceUrl10] = useState("");
+  const [voiceUrl30, setVoiceUrl30] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,9 +36,17 @@ export default function AdminSettings() {
 
   useEffect(() => {
     if (settings) {
-      setStoresUrl10(settings.find((s) => s.key === "stores_url_10min")?.value ?? "");
-      setStoresUrl20(settings.find((s) => s.key === "stores_url_20min")?.value ?? "");
-      setStoresUrl30(settings.find((s) => s.key === "stores_url_30min")?.value ?? "");
+      // 新しい4種類のキー。旧キー（stores_url_10min等）からのマイグレーション対応
+      setChatUrl10(
+        settings.find((s) => s.key === "stores_url_chat_10min")?.value ??
+        settings.find((s) => s.key === "stores_url_10min")?.value ?? ""
+      );
+      setChatUrl30(
+        settings.find((s) => s.key === "stores_url_chat_30min")?.value ??
+        settings.find((s) => s.key === "stores_url_30min")?.value ?? ""
+      );
+      setVoiceUrl10(settings.find((s) => s.key === "stores_url_voice_10min")?.value ?? "");
+      setVoiceUrl30(settings.find((s) => s.key === "stores_url_voice_30min")?.value ?? "");
     }
   }, [settings]);
 
@@ -44,9 +54,10 @@ export default function AdminSettings() {
     e.preventDefault();
     setSavingUrls(true);
     setBulkSettings.mutate([
-      { key: "stores_url_10min", value: storesUrl10, label: "STORES延長URL（10分）" },
-      { key: "stores_url_20min", value: storesUrl20, label: "STORES延長URL（20分）" },
-      { key: "stores_url_30min", value: storesUrl30, label: "STORES延長URL（30分）" },
+      { key: "stores_url_chat_10min",  value: chatUrl10,  label: "STORES延長URL（チャット10分）" },
+      { key: "stores_url_chat_30min",  value: chatUrl30,  label: "STORES延長URL（チャット30分）" },
+      { key: "stores_url_voice_10min", value: voiceUrl10, label: "STORES延長URL（音声10分）" },
+      { key: "stores_url_voice_30min", value: voiceUrl30, label: "STORES延長URL（音声30分）" },
     ]);
   }
 
@@ -94,39 +105,79 @@ export default function AdminSettings() {
           </h2>
           <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "20px" }}>
             お客様に送信する延長用のSTORES商品URLを設定してください。
-            管理者チャット画面の「時間を延長する」ボタンから自動送信されます。
+            鑑定方法（チャット・音声）に応じて自動的に対応するURLが使用されます。
           </p>
           <form onSubmit={handleSaveUrls}>
-            <div className="mb-4">
-              <label className="angelique-label">10分延長URL</label>
-              <input
-                type="url"
-                className="angelique-input"
-                value={storesUrl10}
-                onChange={(e) => setStoresUrl10(e.target.value)}
-                placeholder="https://stores.jp/..."
-              />
+            {/* チャット鑑定 */}
+            <div
+              style={{
+                background: "#f9f5f4",
+                border: "1px solid #d4bfbb",
+                borderRadius: "10px",
+                padding: "16px",
+                marginBottom: "16px",
+              }}
+            >
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#6b5b58", marginBottom: "12px" }}>
+                💬 チャット鑑定
+              </div>
+              <div className="mb-4">
+                <label className="angelique-label">10分延長URL</label>
+                <input
+                  type="url"
+                  className="angelique-input"
+                  value={chatUrl10}
+                  onChange={(e) => setChatUrl10(e.target.value)}
+                  placeholder="https://stores.jp/..."
+                />
+              </div>
+              <div>
+                <label className="angelique-label">30分延長URL</label>
+                <input
+                  type="url"
+                  className="angelique-input"
+                  value={chatUrl30}
+                  onChange={(e) => setChatUrl30(e.target.value)}
+                  placeholder="https://stores.jp/..."
+                />
+              </div>
             </div>
-            <div className="mb-4">
-              <label className="angelique-label">20分延長URL</label>
-              <input
-                type="url"
-                className="angelique-input"
-                value={storesUrl20}
-                onChange={(e) => setStoresUrl20(e.target.value)}
-                placeholder="https://stores.jp/..."
-              />
+
+            {/* 音声鑑定 */}
+            <div
+              style={{
+                background: "#f9f5f4",
+                border: "1px solid #d4bfbb",
+                borderRadius: "10px",
+                padding: "16px",
+                marginBottom: "20px",
+              }}
+            >
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#6b5b58", marginBottom: "12px" }}>
+                🎙 音声鑑定
+              </div>
+              <div className="mb-4">
+                <label className="angelique-label">10分延長URL</label>
+                <input
+                  type="url"
+                  className="angelique-input"
+                  value={voiceUrl10}
+                  onChange={(e) => setVoiceUrl10(e.target.value)}
+                  placeholder="https://stores.jp/..."
+                />
+              </div>
+              <div>
+                <label className="angelique-label">30分延長URL</label>
+                <input
+                  type="url"
+                  className="angelique-input"
+                  value={voiceUrl30}
+                  onChange={(e) => setVoiceUrl30(e.target.value)}
+                  placeholder="https://stores.jp/..."
+                />
+              </div>
             </div>
-            <div className="mb-6">
-              <label className="angelique-label">30分延長URL</label>
-              <input
-                type="url"
-                className="angelique-input"
-                value={storesUrl30}
-                onChange={(e) => setStoresUrl30(e.target.value)}
-                placeholder="https://stores.jp/..."
-              />
-            </div>
+
             <button type="submit" className="angelique-btn" disabled={savingUrls}>
               {savingUrls ? "保存中..." : "URLを保存する"}
             </button>
