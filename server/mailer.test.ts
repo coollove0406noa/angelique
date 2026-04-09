@@ -59,9 +59,9 @@ describe("sendSessionInviteEmail", () => {
     expect(result.success).toBe(true);
   });
 
-  it("returns error when sgMail.send throws", async () => {
+  it("returns error when sgMail.send throws a generic error", async () => {
     process.env.SENDGRID_API_KEY = "SG.test_key";
-    vi.mocked(sgMail.send).mockRejectedValueOnce(new Error("Unauthorized"));
+    vi.mocked(sgMail.send).mockRejectedValue(new Error("Unauthorized"));
 
     const result = await sendSessionInviteEmail({
       toEmail: "fail@example.com",
@@ -73,5 +73,88 @@ describe("sendSessionInviteEmail", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Unauthorized");
+    // Unauthorized は 401 なのでリトライなし → 1回のみ呼ばれる
+    expect(sgMail.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries up to 3 times on 429 Rate exceeded and returns error after all retries fail", async () => {
+    process.env.SENDGRID_API_KEY = "SG.test_key";
+    const rateError = Object.assign(new Error("Too Many Requests"), {
+      code: 429,
+      response: {
+        statusCode: 429,
+        body: { errors: [{ message: "Rate exceeded", field: null, help: null }] },
+      },
+    });
+    vi.mocked(sgMail.send).mockRejectedValue(rateError);
+
+    const result = await sendSessionInviteEmail({
+      toEmail: "rate@example.com",
+      toName: "レートテスト",
+      sessionUrl: "https://example.com/session/rate",
+      scheduledAt: new Date(),
+      durationMinutes: 30,
+    });
+
+    expect(result.success).toBe(false);
+    // エラーメッセージに HTTP ステータスコードと詳細が含まれること
+    expect(result.error).toContain("429");
+    expect(result.error).toContain("Rate exceeded");
+    // 3回リトライしていること
+    expect(sgMail.send).toHaveBeenCalledTimes(3);
+  });
+
+  it("succeeds on second attempt after 429 on first attempt", async () => {
+    process.env.SENDGRID_API_KEY = "SG.test_key";
+    const rateError = Object.assign(new Error("Too Many Requests"), {
+      code: 429,
+      response: {
+        statusCode: 429,
+        body: { errors: [{ message: "Rate exceeded", field: null, help: null }] },
+      },
+    });
+    vi.mocked(sgMail.send)
+      .mockRejectedValueOnce(rateError)
+      .mockResolvedValueOnce([{ statusCode: 202 }] as never);
+
+    const result = await sendSessionInviteEmail({
+      toEmail: "retry@example.com",
+      toName: "リトライテスト",
+      sessionUrl: "https://example.com/session/retry",
+      scheduledAt: new Date(),
+      durationMinutes: 30,
+    });
+
+    expect(result.success).toBe(true);
+    // 1回失敗 + 1回成功 = 合計2回
+    expect(sgMail.send).toHaveBeenCalledTimes(2);
+  });
+
+  it("includes HTTP status code and body errors in error message", async () => {
+    process.env.SENDGRID_API_KEY = "SG.test_key";
+    const forbiddenError = Object.assign(new Error("Forbidden"), {
+      code: 403,
+      response: {
+        statusCode: 403,
+        body: {
+          errors: [
+            { message: "The from address does not match a verified Sender Identity", field: "from", help: null },
+          ],
+        },
+      },
+    });
+    vi.mocked(sgMail.send).mockRejectedValue(forbiddenError);
+
+    const result = await sendSessionInviteEmail({
+      toEmail: "forbidden@example.com",
+      toName: "認証エラーテスト",
+      sessionUrl: "https://example.com/session/forbidden",
+      scheduledAt: new Date(),
+      durationMinutes: 30,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("403");
+    expect(result.error).toContain("verified Sender Identity");
   });
 });
