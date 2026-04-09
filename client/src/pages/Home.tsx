@@ -1,31 +1,72 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { getLoginUrl } from "@/const";
-import { Streamdown } from 'streamdown';
+import { useLocation } from "wouter";
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
 export default function Home() {
-  // The userAuth hooks provides authentication state
-  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
-
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  const [, navigate] = useLocation();
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div
+      className="min-h-screen flex flex-col items-center justify-center"
+      style={{ background: "#f9f5f4" }}
+    >
+      <div className="text-center px-6">
+        {/* Logo */}
+        <div
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: "52px",
+            fontWeight: 300,
+            color: "#c9a8a3",
+            letterSpacing: "6px",
+            marginBottom: "8px",
+          }}
+        >
+          ✦ angelique
+        </div>
+        <div
+          style={{
+            fontSize: "13px",
+            color: "#9e8480",
+            letterSpacing: "3px",
+            marginBottom: "48px",
+          }}
+        >
+          オンラインセッション管理システム
+        </div>
+
+        {/* Cards */}
+        <div className="flex gap-4 justify-center flex-wrap">
+          <div
+            className="angelique-card p-8 cursor-pointer hover:shadow-lg transition-shadow"
+            style={{ width: "220px" }}
+            onClick={() => navigate("/admin")}
+          >
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>🌙</div>
+            <div
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: "20px",
+                color: "#6b5b58",
+                marginBottom: "8px",
+              }}
+            >
+              管理者
+            </div>
+            <p style={{ fontSize: "12px", color: "#9e8480", lineHeight: 1.6 }}>
+              セッション管理・予約・チャット
+            </p>
+          </div>
+        </div>
+
+        <p
+          style={{
+            fontSize: "11px",
+            color: "#d4bfbb",
+            marginTop: "48px",
+          }}
+        >
+          お客様はメールに記載されたURLからアクセスしてください
+        </p>
+      </div>
     </div>
   );
 }

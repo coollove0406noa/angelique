@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `app_settings` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`key` varchar(100) NOT NULL,\n\t`value` text NOT NULL,\n\t`label` varchar(200),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `app_settings_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `app_settings_key_unique` UNIQUE(`key`)\n)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 5M1yyCLBSqfsTSB.root --database B6EzJ6NeuYcNikyfaASeGg --execute CREATE TABLE `app_settings` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`key` varchar(100) NOT NULL,\n\t`value` text NOT NULL,\n\t`label` varchar(200),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `app_settings_id` PRIMARY KEY(`id`),\n\tCONSTRAINT `app_settings_key_unique` UNIQUE(`key`)\n)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1565
+}
