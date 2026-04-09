@@ -5,6 +5,7 @@ import { io, Socket } from "socket.io-client";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
+import LinkifiedText from "@/components/LinkifiedText";
 
 type Message = {
   id: number;
@@ -456,8 +457,8 @@ export default function ClientSession() {
               }`}
             >
               {msg.sender === "system" ? (
-                <div className="chat-bubble-system" style={{ whiteSpace: "pre-wrap" }}>
-                  {msg.content}
+                <div className="chat-bubble-system">
+                  <LinkifiedText text={msg.content} />
                 </div>
               ) : (
                 <div>

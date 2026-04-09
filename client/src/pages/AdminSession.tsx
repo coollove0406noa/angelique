@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
+import LinkifiedText from "@/components/LinkifiedText";
 import AdminLogin from "./AdminLogin";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { io, Socket } from "socket.io-client";
@@ -49,7 +50,9 @@ export default function AdminSession() {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [timerStartedAt, setTimerStartedAt] = useState<number | null>(null);
   const [timerStatus, setTimerStatus] = useState<"idle" | "active" | "paused" | "ended">("idle");
-  const [alertFired, setAlertFired] = useState(false);
+  // Use refs for alert flags to avoid stale closure in setInterval
+  const alert5mFiredRef = useRef(false);
+  const alert1mFiredRef = useRef(false);
   const [screenFlash, setScreenFlash] = useState(false);
   const [showCarryoverModal, setShowCarryoverModal] = useState(false);
   const [carryoverMinutes, setCarryoverMinutes] = useState("");
@@ -159,10 +162,15 @@ export default function AdminSession() {
         const current = Math.max(0, remainingSeconds - elapsed);
         setRemainingSeconds(current);
 
-        // 5-minute alert
-        if (current <= ALERT_THRESHOLD && current > 0 && !alertFired) {
-          setAlertFired(true);
-          triggerAlert();
+        // 5-minute alert (once)
+        if (current <= 5 * 60 && current > 5 * 60 - 2 && !alert5mFiredRef.current) {
+          alert5mFiredRef.current = true;
+          triggerChime("5min");
+        }
+        // 1-minute alert (once)
+        if (current <= 60 && current > 58 && !alert1mFiredRef.current) {
+          alert1mFiredRef.current = true;
+          triggerChime("1min");
         }
 
         // Timer ended
@@ -188,24 +196,49 @@ export default function AdminSession() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function triggerAlert() {
-    // Play beep
+  function triggerChime(type: "5min" | "1min") {
+    // Play a single chime sound (no loop)
     try {
       const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.frequency.value = 880;
-      gain.gain.value = 0.3;
-      osc.start();
-      setTimeout(() => { osc.stop(); ctx.close(); }, 800);
-    } catch {}
 
-    // Screen flash
-    setScreenFlash(true);
-    setTimeout(() => setScreenFlash(false), 3000);
-    toast.warning("残り5分です！", { duration: 5000 });
+      if (type === "5min") {
+        // Two-note chime: C5 → E5
+        const notes = [523.25, 659.25];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          osc.connect(gain);
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.3);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.3 + 0.6);
+          osc.start(ctx.currentTime + i * 0.3);
+          osc.stop(ctx.currentTime + i * 0.3 + 0.7);
+        });
+        setTimeout(() => ctx.close(), 1500);
+        setScreenFlash(true);
+        setTimeout(() => setScreenFlash(false), 2000);
+        toast.warning("残り5分です！", { duration: 5000 });
+      } else {
+        // Three-note chime: E5 → G5 → C6
+        const notes = [659.25, 783.99, 1046.5];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          osc.connect(gain);
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.25);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.25 + 0.5);
+          osc.start(ctx.currentTime + i * 0.25);
+          osc.stop(ctx.currentTime + i * 0.25 + 0.6);
+        });
+        setTimeout(() => ctx.close(), 1200);
+        setScreenFlash(true);
+        setTimeout(() => setScreenFlash(false), 1500);
+        toast.warning("残り1分です！", { duration: 5000 });
+      }
+    } catch {}
   }
 
   const handleStartTimer = useCallback(() => {
@@ -215,7 +248,8 @@ export default function AdminSession() {
     setRemainingSeconds(totalSeconds);
     setTimerStartedAt(now);
     setTimerStatus("active");
-    setAlertFired(false);
+    alert5mFiredRef.current = false;
+    alert1mFiredRef.current = false;
     socketRef.current?.emit("timer_start", { sessionId, remainingSeconds: totalSeconds });
     updateSessionMutation.mutate({
       id: sessionId,
@@ -405,7 +439,9 @@ export default function AdminSession() {
                   }`}
                 >
                   {msg.sender === "system" ? (
-                    <div className="chat-bubble-system">{msg.content}</div>
+                    <div className="chat-bubble-system">
+                      <LinkifiedText text={msg.content} />
+                    </div>
                   ) : (
                     <div>
                       {msg.sender === "client" && (
