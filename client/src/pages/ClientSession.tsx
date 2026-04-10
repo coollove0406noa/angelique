@@ -336,11 +336,16 @@ export default function ClientSession() {
   const handleExtensionDone = useCallback(() => {
     if (!session) return;
     setExtensionWaiting(true);
-    setShowExtensionConfirm(false);
-    setShowExtensionUI(false);
+    // ダイアログは閉じずに waiting 表示に切り替え
     socketRef.current?.emit("extension_requested", { sessionId: session.id, minutes: pendingExtensionMinutes ?? 0 });
-    toast.success("占い師に通知しました。しばらくお待ちください。");
   }, [session, pendingExtensionMinutes]);
+
+  // 管理者送信URLバナーの「延長しました」
+  const handleExtensionUrlDone = useCallback(() => {
+    if (!session || !extensionUrlReceived) return;
+    setExtensionWaiting(true);
+    socketRef.current?.emit("extension_requested", { sessionId: session.id, minutes: extensionUrlReceived.minutes });
+  }, [session, extensionUrlReceived]);
 
   // 時間切れ後の延長確認：お客様の選択を管理者に通知
   const handleExtensionChoice = useCallback((choice: "extend" | "end") => {
@@ -752,60 +757,79 @@ export default function ClientSession() {
             textAlign: "center",
           }}
         >
-          <div
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "20px",
-              color: "#6b5b58",
-              marginBottom: "6px",
-            }}
-          >
-            お時間になりました
-          </div>
-          <p style={{ fontSize: "13px", color: "#9e8480", marginBottom: "16px" }}>
-            延長をご希望の場合は、下記よりお手続きください
-          </p>
-          <div className="flex gap-2 justify-center flex-wrap" style={{ marginBottom: "12px" }}>
-            {[10, 30].map((mins) => (
-              <button
-                key={mins}
-                className="angelique-btn"
-                onClick={() => handleExtensionRequest(mins)}
-                style={{ padding: "12px 20px", fontSize: "14px" }}
-              >
-                {mins}分延長
-              </button>
-            ))}
-          </div>
-          {pendingExtensionMinutes !== null && (
-            <div style={{ marginBottom: "10px" }}>
-              <button
-                className="angelique-btn-outline"
-                onClick={handleExtensionDone}
-                style={{ padding: "10px 24px", fontSize: "13px" }}
-              >
-                ✓ 延長しました、お待ちください
-              </button>
+          {extensionWaiting ? (
+            /* 待機中表示 */
+            <div style={{ padding: "8px 0" }}>
+              <div style={{ fontSize: "22px", marginBottom: "8px" }}>🙏</div>
+              <div style={{ fontSize: "15px", color: "#6b5b58", fontWeight: 600, marginBottom: "6px" }}>
+                占い師の確認をお待ちください
+              </div>
+              <p style={{ fontSize: "13px", color: "#9e8480" }}>
+                確認が取れ次第、セッションを再開します
+              </p>
             </div>
+          ) : (
+            /* 延長選択UI */
+            <>
+              <div
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: "20px",
+                  color: "#6b5b58",
+                  marginBottom: "6px",
+                }}
+              >
+                お時間になりました
+              </div>
+              <p style={{ fontSize: "13px", color: "#9e8480", marginBottom: "16px" }}>
+                延長をご希望の場合は、下記よりお手続きください
+              </p>
+              <div className="flex gap-2 justify-center flex-wrap" style={{ marginBottom: "14px" }}>
+                {[10, 30].map((mins) => (
+                  <button
+                    key={mins}
+                    className="angelique-btn"
+                    onClick={() => handleExtensionRequest(mins)}
+                    style={{ padding: "12px 20px", fontSize: "14px" }}
+                  >
+                    {mins}分延長
+                  </button>
+                ))}
+              </div>
+              {pendingExtensionMinutes !== null && (
+                <div style={{ marginBottom: "10px" }}>
+                  <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "8px" }}>
+                    決済が完了したらこちらを押してください
+                  </p>
+                  <button
+                    className="angelique-btn"
+                    onClick={handleExtensionDone}
+                    style={{ padding: "12px 28px", fontSize: "14px" }}
+                  >
+                    延長しました ✓
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  setShowExtensionConfirm(false);
+                  setPendingExtensionMinutes(null);
+                  setClientEnded(true);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "13px",
+                  color: "#9e8480",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  padding: "4px 8px",
+                }}
+              >
+                終了する
+              </button>
+            </>
           )}
-          <button
-            onClick={() => {
-              setShowExtensionConfirm(false);
-              setPendingExtensionMinutes(null);
-              setClientEnded(true);
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "13px",
-              color: "#9e8480",
-              cursor: "pointer",
-              textDecoration: "underline",
-              padding: "4px 8px",
-            }}
-          >
-            終了する
-          </button>
         </div>
       )}
 
@@ -889,13 +913,13 @@ export default function ClientSession() {
         </div>
       )}
 
-      {/* 管理者から延長URLを受信した場合の専用バー */}
-      {extensionUrlReceived && !showExtensionUI && (
+      {/* 管理者から延長URLを受信した場合の専用バー（残り5分フロー） */}
+      {extensionUrlReceived && (
         <div
           style={{
             background: "#fdf5f3",
             borderBottom: "1px solid #d4bfbb",
-            padding: "14px 16px",
+            padding: "16px",
             position: "fixed",
             top: `${totalFixedHeight}px`,
             left: 0,
@@ -905,24 +929,51 @@ export default function ClientSession() {
             textAlign: "center",
           }}
         >
-          <p style={{ fontSize: "13px", color: "#6b5b58", marginBottom: "10px", fontWeight: 500 }}>
-            ✨ {extensionUrlReceived.minutes}分延長のご案内が届いています
-          </p>
-          <a
-            href={extensionUrlReceived.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="angelique-btn"
-            style={{ padding: "10px 24px", fontSize: "14px", display: "inline-block" }}
-          >
-            {extensionUrlReceived.minutes}分延長のお手続きはこちら
-          </a>
-          <button
-            onClick={() => setExtensionUrlReceived(null)}
-            style={{ display: "block", margin: "8px auto 0", fontSize: "12px", color: "#9e8480", background: "none", border: "none", cursor: "pointer" }}
-          >
-            × 閉じる
-          </button>
+          {extensionWaiting ? (
+            /* 待機中表示 */
+            <div style={{ padding: "4px 0" }}>
+              <div style={{ fontSize: "20px", marginBottom: "6px" }}>🙏</div>
+              <div style={{ fontSize: "15px", color: "#6b5b58", fontWeight: 600, marginBottom: "4px" }}>
+                占い師の確認をお待ちください
+              </div>
+              <p style={{ fontSize: "13px", color: "#9e8480" }}>
+                確認が取れ次第、セッションを再開します
+              </p>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: "13px", color: "#6b5b58", marginBottom: "10px", fontWeight: 500 }}>
+                ✨ {extensionUrlReceived.minutes}分延長のご案内が届いています
+              </p>
+              <a
+                href={extensionUrlReceived.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="angelique-btn"
+                style={{ padding: "10px 24px", fontSize: "14px", display: "inline-block", marginBottom: "12px" }}
+              >
+                {extensionUrlReceived.minutes}分延長のお手続きはこちら
+              </a>
+              <div>
+                <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "8px" }}>
+                  決済が完了したらこちらを押してください
+                </p>
+                <button
+                  className="angelique-btn"
+                  onClick={handleExtensionUrlDone}
+                  style={{ padding: "12px 28px", fontSize: "14px" }}
+                >
+                  延長しました ✓
+                </button>
+              </div>
+              <button
+                onClick={() => setExtensionUrlReceived(null)}
+                style={{ display: "block", margin: "10px auto 0", fontSize: "12px", color: "#9e8480", background: "none", border: "none", cursor: "pointer" }}
+              >
+                × 閉じる
+              </button>
+            </>
+          )}
         </div>
       )}
       {/* セッション終了ポップアップ（画面中央に大きく表示） */}

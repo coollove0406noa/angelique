@@ -1013,114 +1013,64 @@ export default function AdminSession() {
         </div>
       )}
 
-      {/* Extension Notification Modal - 延長申請全画面ポップアップ */}
+      {/* Extension Notification Banner - 延長申請通知バナー */}
       {extensionNotification && (
         <div
           style={{
             position: "fixed",
-            inset: 0,
-            zIndex: 100,
-            background: "rgba(0,0,0,0.6)",
+            top: "113px",
+            left: 0,
+            right: 0,
+            zIndex: 60,
+            background: "#fff8e1",
+            borderBottom: "2px solid #f57c00",
+            borderTop: "2px solid #f57c00",
+            padding: "14px 20px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            padding: "20px",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+            boxShadow: "0 4px 16px rgba(245,124,0,0.2)",
           }}
         >
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: "20px",
-              padding: "40px 32px",
-              maxWidth: "480px",
-              width: "100%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-              textAlign: "center",
-              animation: "fadeIn 0.2s ease",
-            }}
-          >
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔔</div>
-            <h2
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "20px" }}>🔔</span>
+            <span style={{ fontSize: "15px", color: "#e65100", fontWeight: 600 }}>
+              お客様が{extensionNotification.minutes}分延長を申請しました
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <button
+              onClick={() => handleExtensionResume(extensionNotification.minutes)}
               style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: "24px",
-                color: "#6b5b58",
-                marginBottom: "12px",
+                background: "linear-gradient(135deg, #c9a8a3, #a87f7a)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                padding: "10px 24px",
+                fontSize: "15px",
                 fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(168,127,122,0.4)",
               }}
             >
-              お客様が延長を申請しています！
-            </h2>
-            <p
+              ▶ {extensionNotification.minutes}分で再開
+            </button>
+            <button
+              onClick={() => setExtensionNotification(null)}
               style={{
-                fontSize: "16px",
+                background: "transparent",
                 color: "#9e8480",
-                marginBottom: "32px",
-                lineHeight: 1.6,
+                border: "1px solid #d4bfbb",
+                borderRadius: "8px",
+                padding: "10px 16px",
+                fontSize: "14px",
+                cursor: "pointer",
               }}
             >
-              お客様が延長の決済を済ませました。
-              <br />
-              何分で再開しますか？
-            </p>
-            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
-              <button
-                onClick={() => handleExtensionResume(10)}
-                style={{
-                  background: "linear-gradient(135deg, #c9a8a3, #a87f7a)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "12px",
-                  padding: "16px 32px",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(168,127,122,0.4)",
-                  transition: "transform 0.1s",
-                }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-              >
-                ▶ 10分で再開
-              </button>
-              <button
-                onClick={() => handleExtensionResume(30)}
-                style={{
-                  background: "linear-gradient(135deg, #c9a8a3, #a87f7a)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "12px",
-                  padding: "16px 32px",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(168,127,122,0.4)",
-                  transition: "transform 0.1s",
-                }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-              >
-                ▶ 30分で再開
-              </button>
-              <button
-                onClick={() => setExtensionNotification(null)}
-                style={{
-                  background: "#f5f5f5",
-                  color: "#6b5b58",
-                  border: "1px solid #d4bfbb",
-                  borderRadius: "12px",
-                  padding: "16px 32px",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "transform 0.1s",
-                }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-              >
-                × 閉じる
-              </button>
-            </div>
+              × 閉じる
+            </button>
           </div>
         </div>
       )}
