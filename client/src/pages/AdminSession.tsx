@@ -712,7 +712,7 @@ export default function AdminSession() {
                       <LinkifiedText text={msg.content} />
                     </div>
                   ) : (
-                    <div style={{ maxWidth: "85%" }}>
+                    <div style={{ maxWidth: "78%" }}>
                       {msg.sender === "client" && (
                         <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "3px", marginLeft: "4px" }}>
                           {session?.clientName}
@@ -868,26 +868,7 @@ export default function AdminSession() {
             )}
 
             {/* Extension Notification */}
-            {extensionNotification && (
-              <div
-                className="angelique-card p-4"
-                style={{ borderLeft: "3px solid #c9a8a3" }}
-              >
-                <div style={{ fontSize: "13px", color: "#6b5b58", fontWeight: 500, marginBottom: "8px" }}>
-                  🔔 延長申請
-                </div>
-                <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "12px" }}>
-                  お客様が延長を申請しました
-                </p>
-                <button
-                  className="angelique-btn justify-center"
-                  onClick={() => handleExtensionResume(10)}
-                  style={{ width: "100%", justifyContent: "center" }}
-                >
-                  ▶ 延長して再開
-                </button>
-              </div>
-            )}
+            {/* 延長申請は全画面ポップアップで表示（下部に移動） */}
 
             {/* Action Buttons */}
             <div className="angelique-card p-4 flex flex-col gap-2">
@@ -983,6 +964,99 @@ export default function AdminSession() {
             >
               キャンセル
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Extension Notification Modal - 延長申請全画面ポップアップ */}
+      {extensionNotification && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "40px 32px",
+              maxWidth: "480px",
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              textAlign: "center",
+              animation: "fadeIn 0.2s ease",
+            }}
+          >
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔔</div>
+            <h2
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: "24px",
+                color: "#6b5b58",
+                marginBottom: "12px",
+                fontWeight: 600,
+              }}
+            >
+              お客様が延長を申請しています！
+            </h2>
+            <p
+              style={{
+                fontSize: "16px",
+                color: "#9e8480",
+                marginBottom: "32px",
+                lineHeight: 1.6,
+              }}
+            >
+              {extensionNotification.minutes}分の延長申請があります。
+              <br />
+              承認または却下してください。
+            </p>
+            <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
+              <button
+                onClick={() => handleExtensionResume(extensionNotification.minutes)}
+                style={{
+                  background: "linear-gradient(135deg, #c9a8a3, #a87f7a)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "12px",
+                  padding: "16px 32px",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(168,127,122,0.4)",
+                  transition: "transform 0.1s",
+                }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                ✅ 承認して延長
+              </button>
+              <button
+                onClick={() => setExtensionNotification(null)}
+                style={{
+                  background: "#f5f5f5",
+                  color: "#6b5b58",
+                  border: "1px solid #d4bfbb",
+                  borderRadius: "12px",
+                  padding: "16px 32px",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "transform 0.1s",
+                }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                ❌ 却下
+              </button>
+            </div>
           </div>
         </div>
       )}

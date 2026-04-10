@@ -188,3 +188,14 @@
 - [x] 3. サーバー側setIntervalで毎秒timer_tickをブロードキャスト（クライアント側setInterval不要）
 - [x] 4. タイマー・延長確認バー・終了メッセージをposition:fixedで画面上部に固定
 - [x] 5. チャット吹き出しmax-widthを７８％に設定（overflow-wrap: anywhere追加）
+
+## 8項目の修正（4回目）
+
+- [ ] 1. ClientSession: timer_tickイベントリスナーの重複登録を防ぐ（アンマウント時クリーンアップ）
+- [ ] 2. session_startedイベントをSocket.ioでお客様側に確実に送信（開始ボタン1回で即切替）
+- [ ] 3. Agora音声通話修正（トークン生成・マイク許可画面・再接続ボタン）
+- [ ] 4. AdminSession: チャット吹き出し幅を78%に設定
+- [ ] 5. WaitingRoom: BGMオフ時にaudio.pause()+currentTime=0で完全停止
+- [ ] 6. WaitingRoom: BGM音量を0.4→0.15に変更
+- [ ] 7. AdminSession: 「接続する」→「開始する」の2段階フローに変更
+- [ ] 8. AdminSession: 延長申請ポップアップを画面中央・大きく・オーバーレイ付きに変更

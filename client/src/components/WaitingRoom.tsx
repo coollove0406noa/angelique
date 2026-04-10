@@ -118,9 +118,9 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
 
     audio.addEventListener("ended", fadeOutAndNext);
     audio.play().then(() => {
-      // フェードイン（0 → 0.25 を1秒かけて）
+      // フェードイン（0 → 0.15 を1秒かけて）
       if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
-      const target = 0.25;
+      const target = 0.15;
       const step = target / 20;
       fadeTimerRef.current = setInterval(() => {
         if (!audioRef.current) return;
@@ -144,7 +144,7 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
       } else {
         audioRef.current?.play().catch(() => {});
         // フェードイン
-        const target = 0.25;
+        const target = 0.15;
         if (audioRef.current) audioRef.current.volume = 0;
         if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
         const step = target / 20;
@@ -156,12 +156,17 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         }, 50);
       }
     } else {
-      // フェードアウトして一時停止
+      // BGM完全停止（フェードアウト後にpause + currentTime=0）
       setBgmEnabled(false);
       const audio = audioRef.current;
       if (!audio) return;
       if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
       const startVol = audio.volume;
+      if (startVol <= 0) {
+        audio.pause();
+        audio.currentTime = 0;
+        return;
+      }
       const step = startVol / 20;
       fadeTimerRef.current = setInterval(() => {
         if (!audioRef.current) return;
@@ -170,6 +175,7 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         if (v <= 0) {
           clearInterval(fadeTimerRef.current!);
           audioRef.current.pause();
+          audioRef.current.currentTime = 0; // 完全停止（再生位置もリセット）
         }
       }, 50);
     }

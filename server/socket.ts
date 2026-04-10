@@ -206,12 +206,14 @@ export function initSocketIO(httpServer: HttpServer) {
 
       const room = `session_${sessionId}`;
       // 全クライアントにタイマー開始を通知（ウェイティングルーム→チャット画面への切り替えトリガー）
+      // session_startedを先に送信（ウェイティングルームの即座切り替え）
+      io?.to(room).emit("session_started", { sessionId });
+      // timer_updateも送信（タイマー状態の同期）
       io?.to(room).emit("timer_update", {
         status: "active",
         remainingSeconds,
         timerStartedAt: now,
       });
-
       // サーバー側でタイマーを開始（毎秒ブロードキャスト）
       startServerTimer(sessionId);
     });

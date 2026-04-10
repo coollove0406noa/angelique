@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
-import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -10,7 +10,7 @@ interface VoiceCallProps {
   isSessionActive: boolean;
 }
 
-type CallStatus = "idle" | "connecting" | "connected" | "disconnected" | "error";
+type CallStatus = "idle" | "mic_check" | "mic_ok" | "mic_denied" | "connecting" | "connected" | "disconnected" | "error";
 
 // Agora RTC SDK is loaded dynamically to avoid SSR issues
 let AgoraRTC: typeof import("agora-rtc-sdk-ng").default | null = null;
@@ -18,9 +18,9 @@ let AgoraRTC: typeof import("agora-rtc-sdk-ng").default | null = null;
 export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCallProps) {
   const [callStatus, setCallStatus] = useState<CallStatus>("idle");
   const [isMuted, setIsMuted] = useState(false);
-  const [isRemoteMuted, setIsRemoteMuted] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
   const [remoteUserCount, setRemoteUserCount] = useState(0);
+  const [callDuration, setCallDuration] = useState(0);
+  const [errorDetail, setErrorDetail] = useState<string>("");
 
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
@@ -28,7 +28,6 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getTokenMutation = trpc.agora.getToken.useMutation();
-
   const channelName = `session-${sessionId}`;
 
   // Load Agora SDK dynamically
@@ -36,12 +35,11 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
     if (!AgoraRTC) {
       const module = await import("agora-rtc-sdk-ng");
       AgoraRTC = module.default;
-      AgoraRTC.setLogLevel(4); // Suppress verbose logs
+      AgoraRTC.setLogLevel(4);
     }
     return AgoraRTC;
   }, []);
 
-  // Start call duration timer
   const startDurationTimer = useCallback(() => {
     callStartTimeRef.current = Date.now();
     durationTimerRef.current = setInterval(() => {
@@ -51,7 +49,6 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
     }, 1000);
   }, []);
 
-  // Stop call duration timer
   const stopDurationTimer = useCallback(() => {
     if (durationTimerRef.current) {
       clearInterval(durationTimerRef.current);
@@ -61,18 +58,42 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
     setCallDuration(0);
   }, []);
 
-  // Format duration as MM:SS
   const formatDuration = (seconds: number) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, "0");
     const s = (seconds % 60).toString().padStart(2, "0");
     return `${m}:${s}`;
   };
 
-  // Start voice call
+  // Step 1: Check microphone permission
+  const checkMicPermission = useCallback(async () => {
+    setCallStatus("mic_check");
+    setErrorDetail("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      // マイク許可OK → すぐに停止してから通話開始へ
+      stream.getTracks().forEach(t => t.stop());
+      setCallStatus("mic_ok");
+    } catch (err: unknown) {
+      const error = err as Error;
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        setCallStatus("mic_denied");
+        setErrorDetail("マイクへのアクセスが拒否されました。ブラウザのアドレスバー左のアイコンからマイクを許可してください。");
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        setCallStatus("error");
+        setErrorDetail("マイクが見つかりません。マイクが接続されているか確認してください。");
+      } else {
+        setCallStatus("error");
+        setErrorDetail(`マイクの確認中にエラーが発生しました: ${error.message}`);
+      }
+    }
+  }, []);
+
+  // Step 2: Start actual call (after mic permission confirmed)
   const startCall = useCallback(async () => {
-    if (callStatus !== "idle" && callStatus !== "disconnected") return;
+    if (callStatus !== "mic_ok" && callStatus !== "disconnected" && callStatus !== "error") return;
 
     setCallStatus("connecting");
+    setErrorDetail("");
 
     try {
       const sdk = await loadAgoraSDK();
@@ -98,7 +119,7 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
         }
       });
 
-      rtcClient.on("user-unpublished", (user, mediaType) => {
+      rtcClient.on("user-unpublished", (_user, mediaType) => {
         if (mediaType === "audio") {
           setRemoteUserCount(prev => Math.max(0, prev - 1));
         }
@@ -113,6 +134,7 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
         if (curState === "DISCONNECTED") {
           setCallStatus("disconnected");
           stopDurationTimer();
+          toast.warning("通話が切断されました。再接続ボタンを押してください。");
         }
       });
 
@@ -127,9 +149,9 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
       // Create and publish local audio track
       const localAudioTrack = await sdk.createMicrophoneAudioTrack({
         encoderConfig: "music_standard",
-        AEC: true, // Acoustic Echo Cancellation
-        ANS: true, // Automatic Noise Suppression
-        AGC: true, // Automatic Gain Control
+        AEC: true,
+        ANS: true,
+        AGC: true,
       });
       localAudioTrackRef.current = localAudioTrack;
       await rtcClient.publish([localAudioTrack]);
@@ -137,10 +159,23 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
       setCallStatus("connected");
       startDurationTimer();
       toast.success("通話を開始しました");
-    } catch (error) {
+    } catch (err: unknown) {
+      const error = err as Error;
       console.error("[VoiceCall] Failed to start call:", error);
       setCallStatus("error");
-      toast.error("通話の開始に失敗しました。マイクの許可を確認してください。");
+
+      let detail = "通話の開始に失敗しました。";
+      if (error.message?.includes("PERMISSION_DENIED") || error.message?.includes("NotAllowed")) {
+        detail = "マイクの許可が必要です。ブラウザのアドレスバー左のアイコンからマイクを許可してください。";
+      } else if (error.message?.includes("UID_CONFLICT")) {
+        detail = "同じチャンネルに既に接続されています。ページを再読み込みしてください。";
+      } else if (error.message?.includes("INVALID_VENDOR_KEY") || error.message?.includes("INVALID_TOKEN")) {
+        detail = "Agoraのトークンが無効です。ページを再読み込みしてください。";
+      } else if (error.message) {
+        detail = `エラー: ${error.message}`;
+      }
+      setErrorDetail(detail);
+      toast.error(detail);
 
       // Cleanup on error
       if (clientRef.current) {
@@ -169,6 +204,7 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
       setCallStatus("idle");
       setIsMuted(false);
       setRemoteUserCount(0);
+      setErrorDetail("");
       stopDurationTimer();
       toast.info("通話を終了しました");
     } catch (error) {
@@ -203,6 +239,11 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
 
   const isConnected = callStatus === "connected";
   const isConnecting = callStatus === "connecting";
+  const isMicCheck = callStatus === "mic_check";
+  const isMicOk = callStatus === "mic_ok";
+  const isMicDenied = callStatus === "mic_denied";
+  const isDisconnected = callStatus === "disconnected";
+  const isError = callStatus === "error";
 
   return (
     <div className="voice-call-panel">
@@ -212,10 +253,12 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
           className={`w-2.5 h-2.5 rounded-full ${
             isConnected
               ? "bg-green-500 animate-pulse"
-              : isConnecting
+              : isConnecting || isMicCheck
               ? "bg-yellow-400 animate-pulse"
-              : callStatus === "error"
+              : isError || isMicDenied
               ? "bg-red-500"
+              : isMicOk
+              ? "bg-blue-400"
               : "bg-gray-300"
           }`}
         />
@@ -224,7 +267,15 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
             ? `通話中 ${formatDuration(callDuration)}`
             : isConnecting
             ? "接続中..."
-            : callStatus === "error"
+            : isMicCheck
+            ? "マイク確認中..."
+            : isMicOk
+            ? "マイク確認OK"
+            : isMicDenied
+            ? "マイク許可が必要"
+            : isDisconnected
+            ? "通話が切断されました"
+            : isError
             ? "接続エラー"
             : "音声通話"}
         </span>
@@ -240,12 +291,92 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
         )}
       </div>
 
+      {/* Mic permission check UI */}
+      {isMicDenied && (
+        <div
+          style={{
+            background: "#fff3f3",
+            border: "1px solid #f5c6c6",
+            borderRadius: "10px",
+            padding: "12px 14px",
+            marginBottom: "10px",
+          }}
+        >
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p style={{ fontSize: "13px", color: "#c0392b", fontWeight: 600, marginBottom: "4px" }}>
+                マイクへのアクセスが拒否されました
+              </p>
+              <p style={{ fontSize: "12px", color: "#9e8480", lineHeight: 1.5 }}>
+                ブラウザのアドレスバー左端の🔒アイコンをクリックし、マイクを「許可」に変更してからページを再読み込みしてください。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(isError || isDisconnected) && errorDetail && (
+        <div
+          style={{
+            background: "#fff8f0",
+            border: "1px solid #f5d6b0",
+            borderRadius: "10px",
+            padding: "10px 12px",
+            marginBottom: "10px",
+          }}
+        >
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+            <p style={{ fontSize: "12px", color: "#9e8480", lineHeight: 1.5 }}>{errorDetail}</p>
+          </div>
+        </div>
+      )}
+
+      {isMicOk && (
+        <div
+          style={{
+            background: "#f0fff4",
+            border: "1px solid #b2dfdb",
+            borderRadius: "10px",
+            padding: "10px 12px",
+            marginBottom: "10px",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+            <p style={{ fontSize: "12px", color: "#2e7d32" }}>マイクの確認が完了しました。「通話を開始する」を押してください。</p>
+          </div>
+        </div>
+      )}
+
       {/* Call controls */}
       <div className="flex items-center gap-2 flex-wrap">
-        {!isConnected && !isConnecting && (
+        {/* Step 1: Mic check button (idle state) */}
+        {callStatus === "idle" && (
+          <Button
+            onClick={checkMicPermission}
+            disabled={!isSessionActive}
+            className="voice-call-btn-start"
+            size="sm"
+          >
+            <Mic className="w-4 h-4 mr-1.5" />
+            マイクを確認する
+          </Button>
+        )}
+
+        {/* Mic checking spinner */}
+        {isMicCheck && (
+          <Button disabled size="sm" variant="outline">
+            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            確認中...
+          </Button>
+        )}
+
+        {/* Step 2: Start call button (after mic ok) */}
+        {isMicOk && (
           <Button
             onClick={startCall}
-            disabled={!isSessionActive || isConnecting}
             className="voice-call-btn-start"
             size="sm"
           >
@@ -254,6 +385,28 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
           </Button>
         )}
 
+        {/* Reconnect button (after mic denied or error) */}
+        {(isMicDenied || isError || isDisconnected) && (
+          <Button
+            onClick={isMicDenied ? checkMicPermission : (isDisconnected ? startCall : checkMicPermission)}
+            size="sm"
+            variant="outline"
+            style={{ borderColor: "#c9a8a3", color: "#6b5b58" }}
+          >
+            <Phone className="w-4 h-4 mr-1.5" />
+            {isMicDenied ? "再度マイクを確認" : isDisconnected ? "再接続する" : "再試行する"}
+          </Button>
+        )}
+
+        {/* Connecting spinner */}
+        {isConnecting && (
+          <Button disabled size="sm" variant="outline">
+            <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            接続中...
+          </Button>
+        )}
+
+        {/* Active call controls */}
         {(isConnected || isConnecting) && (
           <>
             <Button
@@ -288,21 +441,9 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
             )}
           </>
         )}
-
-        {callStatus === "error" && (
-          <Button
-            onClick={startCall}
-            size="sm"
-            variant="outline"
-            className="text-red-600 border-red-300"
-          >
-            <Phone className="w-4 h-4 mr-1.5" />
-            再接続する
-          </Button>
-        )}
       </div>
 
-      {/* Info note */}
+      {/* Info notes */}
       {!isSessionActive && callStatus === "idle" && (
         <p className="text-xs mt-2" style={{ color: "#9e8480" }}>
           セッションを開始すると通話ボタンが有効になります

@@ -39,6 +39,7 @@ export default function ClientSession() {
   const { token } = useParams<{ token: string }>();
 
   const socketRef = useRef<Socket | null>(null);
+  const socketInitializedRef = useRef(false); // 重複接続防止フラグ
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -111,10 +112,21 @@ export default function ClientSession() {
     if (initialMessages) setMessages(initialMessages as Message[]);
   }, [initialMessages]);
 
-  // Socket.io
+  // Socket.io（重複接続防止: session.idが確定したら1回だけ接続）
   useEffect(() => {
     if (!session?.id) return;
+    // 既に接続済みの場合はスキップ（重複接続によるtimer_tick多重登録を防ぐ）
+    if (socketInitializedRef.current && socketRef.current?.connected) return;
 
+    // 既存ソケットがあれば切断してから再接続
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    socketInitializedRef.current = true;
+
+    const sessionId = session.id;
     const socket = io(window.location.origin, {
       path: "/api/socket.io",
       transports: ["websocket", "polling"],
@@ -122,11 +134,9 @@ export default function ClientSession() {
 
     socket.on("connect", () => {
       setConnected(true);
-      socket.emit("join_session", { sessionId: session.id, role: "client", token });
+      socket.emit("join_session", { sessionId, role: "client", token });
       // ウェイティングルーム中なら管理者に通知
-      if (session.status === "scheduled") {
-        socket.emit("waiting_room_join", { sessionId: session.id });
-      }
+      socket.emit("waiting_room_join", { sessionId });
     });
     socket.on("disconnect", () => setConnected(false));
 
@@ -134,12 +144,12 @@ export default function ClientSession() {
       setMessages((prev) => [...prev, msg]);
     });
 
-    socket.on("timer_update", ({ status, remainingSeconds: rs, timerStartedAt: tsa }) => {
+    socket.on("timer_update", ({ status, remainingSeconds: rs, timerStartedAt: tsa }: { status: string; remainingSeconds: number; timerStartedAt: number | null }) => {
       setRemainingSeconds(rs);
       setTimerStartedAt(tsa);
       if (status === "active") {
         setTimerStatus("active");
-        // タイマー開始 = ウェイティングルームを終了
+        // タイマー開始 = ウェイティングルームを終了（最重要）
         setShowWaitingRoom(false);
         setShowExtensionUI(false);
         setExtensionWaiting(false);
@@ -148,6 +158,10 @@ export default function ClientSession() {
         alert1mFiredRef.current = false;
       } else if (status === "paused") {
         setTimerStatus("paused");
+        setShowWaitingRoom(false);
+      } else if (status === "ended") {
+        setTimerStatus("ended");
+        setShowWaitingRoom(false);
       }
     });
 
@@ -173,13 +187,14 @@ export default function ClientSession() {
     socket.on("extension_url_received", ({ minutes, url }: { minutes: number; url: string }) => {
       setExtensionUrlReceived({ minutes, url });
     });
-    // 管理者がセッション開始 → ウェイティングルームを終了
+
+    // 管理者がセッション開始 → ウェイティングルームを終了（timer_updateの補完）
     socket.on("session_started", () => {
       setShowWaitingRoom(false);
-      toast.success("占い師が準備できました。セッションを開始します。");
     });
 
     // サーバーからの毎秒タイマーティックを受信（クライアント側setInterval不要）
+    // ※このリスナーは1つのソケットに1つだけ登録される（重複防止済み）
     socket.on("timer_tick", ({ remainingSeconds: rs }: { remainingSeconds: number }) => {
       setRemainingSeconds(rs);
       // 5分アラーム
@@ -195,7 +210,12 @@ export default function ClientSession() {
     });
 
     socketRef.current = socket;
-    return () => { socket.disconnect(); };
+    return () => {
+      socket.removeAllListeners();
+      socket.disconnect();
+      socketRef.current = null;
+      socketInitializedRef.current = false;
+    };
   }, [session?.id, token]);
 
   // タイマーはサーバー側のセットインターバルからtimer_tickで受信するため、クライアント側setIntervalは不要
