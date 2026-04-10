@@ -1036,6 +1036,28 @@ export default function ClientSession() {
           className="flex-1 overflow-y-auto p-4 flex flex-col gap-3"
           style={{ minHeight: 0, paddingTop: "80px" }}
         >
+          {/* 繰越分の通知（繰越がある場合のみ表示） */}
+          {(session.carryoverMinutes ?? 0) > 0 && (
+            <div
+              style={{
+                background: "#fdf8f0",
+                border: "1px dashed #f0c070",
+                borderRadius: "12px",
+                padding: "10px 16px",
+                fontSize: "13px",
+                color: "#7a5c00",
+                textAlign: "center",
+                lineHeight: 1.7,
+              }}
+            >
+              ✨ 前回の繰越分 <strong>{session.carryoverMinutes}分</strong> が含まれています
+              <br />
+              <span style={{ fontSize: "12px", color: "#9e8480" }}>
+                本日のセッション時間：{session.durationMinutes}分
+                （{session.durationMinutes - session.carryoverMinutes}分 + 繰越{session.carryoverMinutes}分）
+              </span>
+            </div>
+          )}
           {/* Welcome message */}
           {messages.length === 0 && timerStatus === "idle" && (
             <div className="flex-1 flex flex-col items-center justify-center gap-4">

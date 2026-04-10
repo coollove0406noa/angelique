@@ -553,6 +553,20 @@ export default function AdminSession() {
           {isWarning && timerStatus === "active" && (
             <span style={{ fontSize: "12px", color: "#f57c00", fontWeight: 600 }}>⚠ 残り5分</span>
           )}
+          {(session?.carryoverMinutes ?? 0) > 0 && (
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#7a5c00",
+                background: "#fdf8f0",
+                border: "1px solid #f0c070",
+                borderRadius: "10px",
+                padding: "2px 8px",
+              }}
+            >
+              繰越{session!.carryoverMinutes}分含む
+            </span>
+          )}
           {/* お客様の接続状態バッジ */}
           <div
             style={{
