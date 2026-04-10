@@ -1053,8 +1053,8 @@ export default function ClientSession() {
               ✨ 前回の繰越分 <strong>{session.carryoverMinutes}分</strong> が含まれています
               <br />
               <span style={{ fontSize: "12px", color: "#9e8480" }}>
-                本日のセッション時間：{session.durationMinutes}分
-                （{session.durationMinutes - session.carryoverMinutes}分 + 繰越{session.carryoverMinutes}分）
+                本日のセッション時間：{session.durationMinutes + session.carryoverMinutes}分
+                （{session.durationMinutes}分 + 繰越{session.carryoverMinutes}分）
               </span>
             </div>
           )}
