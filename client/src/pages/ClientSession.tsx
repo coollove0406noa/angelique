@@ -67,6 +67,9 @@ export default function ClientSession() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 音声通話パネルの高さを動的計測（fixedバー分のスペース計算に使用）
+  const voicePanelRef = useRef<HTMLDivElement | null>(null);
+  const [voicePanelHeight, setVoicePanelHeight] = useState(0);
 
   const uploadImageMutation = trpc.messages.uploadImage.useMutation();
 
@@ -222,6 +225,19 @@ export default function ClientSession() {
 
   // タイマーはサーバー側のセットインターバルからtimer_tickで受信するため、クライアント側setIntervalは不要
 
+  // 音声通話パネルの高さをResizeObserverで動的計測
+  useEffect(() => {
+    if (session?.sessionType !== "voice") return;
+    const el = voicePanelRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(() => {
+      setVoicePanelHeight(el.offsetHeight);
+    });
+    obs.observe(el);
+    setVoicePanelHeight(el.offsetHeight); // 初回計測
+    return () => obs.disconnect();
+  }, [session?.sessionType, voicePanelRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -305,6 +321,10 @@ export default function ClientSession() {
     setClientEnded(true);
     setShowEndConfirm(false);
   }, [session]);
+
+  // fixedバー合計高（ヘッダー53px + タイマー48px + 音声パネル）
+  const HEADER_TIMER_HEIGHT = 101; // header(53) + timer(48)
+  const totalFixedHeight = HEADER_TIMER_HEIGHT + (session?.sessionType === "voice" ? voicePanelHeight : 0);
 
   // Display timer - サーバー基準時刻から計算
   const displaySeconds = (() => {
@@ -655,6 +675,7 @@ export default function ClientSession() {
       {/* Voice Call Panel (voice sessions only) - fixed固定 */}
       {session?.sessionType === "voice" && (
         <div
+          ref={voicePanelRef}
           style={{
             padding: "12px 16px",
             background: "#f9f5f4",
@@ -682,7 +703,7 @@ export default function ClientSession() {
             borderBottom: "1px solid #d4bfbb",
             padding: "16px",
             position: "fixed",
-            top: session?.sessionType === "voice" ? "149px" : "101px",
+            top: `${totalFixedHeight}px`,
             left: 0,
             right: 0,
             zIndex: 38,
@@ -762,7 +783,7 @@ export default function ClientSession() {
             borderBottom: "1px solid #d4bfbb",
             padding: "14px 16px",
             position: "fixed",
-            top: session?.sessionType === "voice" ? "149px" : "101px",
+            top: `${totalFixedHeight}px`,
             left: 0,
             right: 0,
             zIndex: 37,
@@ -837,8 +858,8 @@ export default function ClientSession() {
         </div>
       )}
 
-      {/* fixedバー（ヘッダー53px + タイマーバー約48px）の分だけ上部にスペースを確保 */}
-      <div style={{ height: session?.sessionType === "voice" ? "149px" : "101px" }} />
+      {/* fixedバー合計高さ分のスペースを確保（音声パネルは動的計測） */}
+      <div style={{ height: `${totalFixedHeight}px` }} />
 
       {/* Chat Area */}
       <div
@@ -888,7 +909,7 @@ export default function ClientSession() {
                   <LinkifiedText text={msg.content} />
                 </div>
               ) : (
-                <div style={{ maxWidth: "100%", width: "100%" }}>
+                <div style={{ maxWidth: "78%" }}>
                   {msg.sender === "admin" && (
                     <div
                       style={{
@@ -937,6 +958,11 @@ export default function ClientSession() {
                       className={
                         msg.sender === "client" ? "chat-bubble-client-self" : "chat-bubble-client"
                       }
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        overflowWrap: "break-word",
+                      }}
                     >
                       <LinkifiedText text={msg.content} />
                     </div>

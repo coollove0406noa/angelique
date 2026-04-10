@@ -21,7 +21,7 @@ export default function LinkifiedText({ text, className, style }: Props) {
   URL_REGEX.lastIndex = 0;
 
   return (
-    <span className={className} style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", ...style }}>
+    <span className={className} style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word", ...style }}>
       {parts.map((part, i) => {
         // splitの仕様上、奇数インデックスがURL部分
         if (i % 2 === 1) {
