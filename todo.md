@@ -191,11 +191,11 @@
 
 ## 8項目の修正（4回目）
 
-- [ ] 1. ClientSession: timer_tickイベントリスナーの重複登録を防ぐ（アンマウント時クリーンアップ）
-- [ ] 2. session_startedイベントをSocket.ioでお客様側に確実に送信（開始ボタン1回で即切替）
-- [ ] 3. Agora音声通話修正（トークン生成・マイク許可画面・再接続ボタン）
-- [ ] 4. AdminSession: チャット吹き出し幅を78%に設定
-- [ ] 5. WaitingRoom: BGMオフ時にaudio.pause()+currentTime=0で完全停止
-- [ ] 6. WaitingRoom: BGM音量を0.4→0.15に変更
-- [ ] 7. AdminSession: 「接続する」→「開始する」の2段階フローに変更
-- [ ] 8. AdminSession: 延長申請ポップアップを画面中央・大きく・オーバーレイ付きに変更
+- [x] 1. ClientSession: socketInitializedRefで重複接続防止・アンマウント時クリーンアップ
+- [x] 2. server/socket.tsにsession_startedイベント追加（timer_start時にブロードキャスト）
+- [x] 3. VoiceCall.tsx: マイク許可確認→通話開始の2段階フロー・詳細エラーメッセージ・再接続改善
+- [x] 4. AdminSession: チャット吹き出しmaxWidthを78%に設定
+- [x] 5. WaitingRoom: BGMオフ時にaudio.pause()+currentTime=0で完全停止
+- [x] 6. WaitingRoom: BGM音量を0.15に変更
+- [x] 7. VoiceCall.tsx: マイク確認→通話開始の2段階フロー（2段階開始フローはVoiceCallで実現）
+- [x] 8. AdminSession: 延長申請を全画面オーバーレイポップアップ（position:fixed・大きな🔔テキスト・承認/却下ボタン）に変更
