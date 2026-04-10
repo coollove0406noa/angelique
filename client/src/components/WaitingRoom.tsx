@@ -79,6 +79,8 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
   const audioRef    = useRef<HTMLAudioElement | null>(null);
   const trackIdxRef = useRef<number>(-1);
   const fadeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // BGM ON/OFF の最新状態をrefで管理（fadeOutAndNextのstale closure対策）
+  const bgmEnabledRef = useRef(false);
 
   // ランダムな曲インデックスを選ぶ（直前と同じ曲は避ける）
   const pickNextTrack = useCallback(() => {
@@ -90,7 +92,7 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
     return next;
   }, []);
 
-  // フェードアウト → 次の曲へ
+  // フェードアウト → 次の曲へ（BGMがOFFになっていれば次曲は再生しない）
   const fadeOutAndNext = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -105,7 +107,10 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
       if (v <= 0) {
         clearInterval(fadeTimerRef.current!);
         audioRef.current.pause();
-        playTrack(pickNextTrack());
+        // BGMがオフになっていれば次曲を再生しない
+        if (bgmEnabledRef.current) {
+          playTrack(pickNextTrack());
+        }
       }
     }, 50); // 50ms × 20 = 1秒フェードアウト
   }, [pickNextTrack]);
@@ -137,6 +142,7 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
   const toggleBgm = useCallback(async () => {
     if (!bgmEnabled) {
       // BGMをオンにする
+      bgmEnabledRef.current = true;
       setBgmEnabled(true);
       if (!bgmStarted) {
         // 初回起動
@@ -161,39 +167,19 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         playTrack(pickNextTrack());
       }
     } else {
-      // BGMをオフにする（フェードアウト後に完全停止）
+      // BGMをオフにする：refを先に更新してfadeOutAndNextの連鎖再生を防ぐ
+      bgmEnabledRef.current = false;
       setBgmEnabled(false);
-      // フェードタイマーを必ずクリア
+      // 実行中のフェードタイマーを停止
       if (fadeTimerRef.current) {
         clearInterval(fadeTimerRef.current);
         fadeTimerRef.current = null;
       }
+      // audio.pause()で完全停止
       const audio = audioRef.current;
       if (!audio) return;
-      const startVol = audio.volume;
-      if (startVol <= 0) {
-        // 既に音量0ならそのまま停止
-        audio.pause();
-        audio.currentTime = 0;
-        return;
-      }
-      // フェードアウトしてから停止
-      const step = startVol / 20;
-      fadeTimerRef.current = setInterval(() => {
-        if (!audioRef.current) {
-          clearInterval(fadeTimerRef.current!);
-          fadeTimerRef.current = null;
-          return;
-        }
-        const v = Math.max(0, audioRef.current.volume - step);
-        audioRef.current.volume = v;
-        if (v <= 0) {
-          clearInterval(fadeTimerRef.current!);
-          fadeTimerRef.current = null;
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-        }
-      }, 50);
+      audio.pause();
+      audio.currentTime = 0;
     }
   }, [bgmEnabled, bgmStarted, playTrack, pickNextTrack]);
 

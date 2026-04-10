@@ -197,6 +197,8 @@ export default function ClientSession() {
     // ※このリスナーは1つのソケットに1つだけ登録される（重複防止済み）
     socket.on("timer_tick", ({ remainingSeconds: rs }: { remainingSeconds: number }) => {
       setRemainingSeconds(rs);
+      // サーバーからの残り秒数を基準点として更新（elapsed二重計算を防ぐ）
+      setTimerStartedAt(Date.now());
       // 5分アラーム
       if (rs <= ALERT_THRESHOLD && rs > ALERT_THRESHOLD - 2 && !alert5mFiredRef.current) {
         alert5mFiredRef.current = true;

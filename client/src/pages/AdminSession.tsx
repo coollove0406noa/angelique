@@ -747,6 +747,7 @@ export default function AdminSession() {
                           className={
                             msg.sender === "admin" ? "chat-bubble-admin" : "chat-bubble-client"
                           }
+                          style={{ whiteSpace: "pre-wrap" }}
                         >
                           <LinkifiedText text={msg.content} />
                         </div>
