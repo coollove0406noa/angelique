@@ -52,6 +52,8 @@ export default function ClientSession() {
   const [extensionWaiting, setExtensionWaiting] = useState(false);
   // 時間切れ後の延長確認ダイアログ
   const [showExtensionConfirm, setShowExtensionConfirm] = useState(false);
+  // 延長申請で選択した分数（"延長しました"ボタンで送信する）
+  const [pendingExtensionMinutes, setPendingExtensionMinutes] = useState<number | null>(null);
   // アラームフラグはuseRefで管理してstale closureを防ぐ
   const alert5mFiredRef = useRef(false);
   const alert1mFiredRef = useRef(false);
@@ -64,14 +66,29 @@ export default function ClientSession() {
   const [clientEnded, setClientEnded] = useState(false);
   // 管理者から送られた延長URL（チャットではなく専用バーに表示）
   const [extensionUrlReceived, setExtensionUrlReceived] = useState<{ minutes: number; url: string } | null>(null);
+  // window.close()失敗時のフォールバックメッセージ
+  const [showCloseMessage, setShowCloseMessage] = useState(false);
   // 画像アップロード
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // 音声通話パネルの高さを動的計測（fixedバー分のスペース計算に使用）
-  const voicePanelRef = useRef<HTMLDivElement | null>(null);
   const [voicePanelHeight, setVoicePanelHeight] = useState(0);
+  const voicePanelObserverRef = useRef<ResizeObserver | null>(null);
+  const voicePanelCallbackRef = useCallback((el: HTMLDivElement | null) => {
+    if (voicePanelObserverRef.current) {
+      voicePanelObserverRef.current.disconnect();
+      voicePanelObserverRef.current = null;
+    }
+    if (!el) return;
+    const obs = new ResizeObserver(() => {
+      setVoicePanelHeight(el.offsetHeight);
+    });
+    obs.observe(el);
+    setVoicePanelHeight(el.offsetHeight);
+    voicePanelObserverRef.current = obs;
+  }, []);
 
   const uploadImageMutation = trpc.messages.uploadImage.useMutation();
 
@@ -186,6 +203,7 @@ export default function ClientSession() {
 
     socket.on("session_ended", () => {
       setTimerStatus("ended");
+      setShowWaitingRoom(false);
       setShowExtensionUI(false);
       setShowExtensionConfirm(false);
       setSessionEndedMessage(true);
@@ -230,23 +248,24 @@ export default function ClientSession() {
 
   // タイマーはサーバー側のセットインターバルからtimer_tickで受信するため、クライアント側setIntervalは不要
 
-  // 音声通話パネルの高さをResizeObserverで動的計測
-  useEffect(() => {
-    if (session?.sessionType !== "voice") return;
-    const el = voicePanelRef.current;
-    if (!el) return;
-    const obs = new ResizeObserver(() => {
-      setVoicePanelHeight(el.offsetHeight);
-    });
-    obs.observe(el);
-    setVoicePanelHeight(el.offsetHeight); // 初回計測
-    return () => obs.disconnect();
-  }, [session?.sessionType, voicePanelRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 画面を閉じる（スマホ/アプリブラウザでwindow.close()が効かない場合はメッセージ表示）
+  const handleClose = useCallback(() => {
+    try {
+      window.close();
+    } catch (_) {
+      // ignore
+    }
+    setTimeout(() => {
+      if (!window.closed) {
+        setShowCloseMessage(true);
+      }
+    }, 300);
+  }, []);
 
   const handleSendMessage = useCallback(() => {
     if (!inputText.trim() || !session) return;
@@ -297,7 +316,7 @@ export default function ClientSession() {
     if (imageInputRef.current) imageInputRef.current.value = "";
   }, [session, uploadImageMutation]);
 
-  // 延長ボタン → 別タブで決済URLを開く
+  // 延長ボタン → 別タブで決済URLを開く＆申請分数を記憶
   const handleExtensionRequest = useCallback((minutes: number) => {
     if (!session) return;
     const settings = storeSettings ?? [];
@@ -311,14 +330,17 @@ export default function ClientSession() {
     } else {
       toast.info("延長URLが設定されていません。占い師にご連絡ください。");
     }
+    setPendingExtensionMinutes(minutes);
   }, [storeSettings, session]);
 
   const handleExtensionDone = useCallback(() => {
     if (!session) return;
     setExtensionWaiting(true);
-    socketRef.current?.emit("extension_requested", { sessionId: session.id, minutes: 0 });
+    setShowExtensionConfirm(false);
+    setShowExtensionUI(false);
+    socketRef.current?.emit("extension_requested", { sessionId: session.id, minutes: pendingExtensionMinutes ?? 0 });
     toast.success("占い師に通知しました。しばらくお待ちください。");
-  }, [session]);
+  }, [session, pendingExtensionMinutes]);
 
   // 時間切れ後の延長確認：お客様の選択を管理者に通知
   const handleExtensionChoice = useCallback((choice: "extend" | "end") => {
@@ -508,21 +530,27 @@ export default function ClientSession() {
           <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8, marginBottom: "24px" }}>
             またのご利用をお待ちしております。
           </p>
-          <button
-            onClick={() => window.close()}
-            style={{
-              background: "transparent",
-              border: "1px solid #d4bfbb",
-              borderRadius: "24px",
-              padding: "10px 28px",
-              fontSize: "14px",
-              color: "#9e8480",
-              cursor: "pointer",
-              fontFamily: "'Noto Sans JP', sans-serif",
-            }}
-          >
-            画面を閉じる
-          </button>
+          {showCloseMessage ? (
+            <p style={{ color: "#9e8480", fontSize: "13px", lineHeight: 1.7 }}>
+              ブラウザの戻るボタンでお戻りください
+            </p>
+          ) : (
+            <button
+              onClick={handleClose}
+              style={{
+                background: "transparent",
+                border: "1px solid #d4bfbb",
+                borderRadius: "24px",
+                padding: "10px 28px",
+                fontSize: "14px",
+                color: "#9e8480",
+                cursor: "pointer",
+                fontFamily: "'Noto Sans JP', sans-serif",
+              }}
+            >
+              画面を閉じる
+            </button>
+          )}
         </div>
       </div>
     );
@@ -708,7 +736,7 @@ export default function ClientSession() {
       {/* Voice Call Panel (voice sessions only) - fixed固定 */}
       {session?.sessionType === "voice" && (
         <div
-          ref={voicePanelRef}
+          ref={voicePanelCallbackRef}
           style={{
             padding: "12px 16px",
             background: "#f9f5f4",
@@ -754,25 +782,50 @@ export default function ClientSession() {
           >
             お時間になりました
           </div>
-          <p style={{ fontSize: "13px", color: "#9e8480", marginBottom: "18px" }}>
-            鑑定を延長しますか？
+          <p style={{ fontSize: "13px", color: "#9e8480", marginBottom: "16px" }}>
+            延長をご希望の場合は、下記よりお手続きください
           </p>
-          <div className="flex gap-3 justify-center">
-            <button
-              className="angelique-btn"
-              onClick={() => handleExtensionChoice("extend")}
-              style={{ padding: "12px 24px", fontSize: "14px" }}
-            >
-              はい（延長する）
-            </button>
-            <button
-              className="angelique-btn-outline"
-              onClick={() => handleExtensionChoice("end")}
-              style={{ padding: "12px 24px", fontSize: "14px" }}
-            >
-              いいえ（終了する）
-            </button>
+          <div className="flex gap-2 justify-center flex-wrap" style={{ marginBottom: "12px" }}>
+            {[10, 30].map((mins) => (
+              <button
+                key={mins}
+                className="angelique-btn"
+                onClick={() => handleExtensionRequest(mins)}
+                style={{ padding: "12px 20px", fontSize: "14px" }}
+              >
+                {mins}分延長
+              </button>
+            ))}
           </div>
+          {pendingExtensionMinutes !== null && (
+            <div style={{ marginBottom: "10px" }}>
+              <button
+                className="angelique-btn-outline"
+                onClick={handleExtensionDone}
+                style={{ padding: "10px 24px", fontSize: "13px" }}
+              >
+                ✓ 延長しました、お待ちください
+              </button>
+            </div>
+          )}
+          <button
+            onClick={() => {
+              setShowExtensionConfirm(false);
+              setPendingExtensionMinutes(null);
+              setClientEnded(true);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "13px",
+              color: "#9e8480",
+              cursor: "pointer",
+              textDecoration: "underline",
+              padding: "4px 8px",
+            }}
+          >
+            終了する
+          </button>
         </div>
       )}
 
@@ -935,21 +988,27 @@ export default function ClientSession() {
               ありがとうございました。<br />
               またのご利用をお待ちしております。
             </p>
-            <button
-              onClick={() => window.close()}
-              style={{
-                background: "transparent",
-                border: "1px solid #d4bfbb",
-                borderRadius: "24px",
-                padding: "10px 28px",
-                fontSize: "14px",
-                color: "#9e8480",
-                cursor: "pointer",
-                fontFamily: "'Noto Sans JP', sans-serif",
-              }}
-            >
-              画面を閉じる
-            </button>
+            {showCloseMessage ? (
+              <p style={{ color: "#9e8480", fontSize: "13px", lineHeight: 1.7 }}>
+                ブラウザの戻るボタンでお戻りください
+              </p>
+            ) : (
+              <button
+                onClick={handleClose}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #d4bfbb",
+                  borderRadius: "24px",
+                  padding: "10px 28px",
+                  fontSize: "14px",
+                  color: "#9e8480",
+                  cursor: "pointer",
+                  fontFamily: "'Noto Sans JP', sans-serif",
+                }}
+              >
+                画面を閉じる
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1005,7 +1064,7 @@ export default function ClientSession() {
                   <LinkifiedText text={msg.content} />
                 </div>
               ) : (
-                <div style={{ maxWidth: "78%" }}>
+                <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
                   {msg.sender === "admin" && (
                     <div
                       style={{

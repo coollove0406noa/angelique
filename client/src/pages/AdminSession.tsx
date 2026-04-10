@@ -752,7 +752,7 @@ export default function AdminSession() {
                       <LinkifiedText text={msg.content} />
                     </div>
                   ) : (
-                    <div style={{ maxWidth: "78%" }}>
+                    <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
                       {msg.sender === "client" && (
                         <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "3px", marginLeft: "4px" }}>
                           {session?.clientName}
@@ -1059,13 +1059,13 @@ export default function AdminSession() {
                 lineHeight: 1.6,
               }}
             >
-              {extensionNotification.minutes}分の延長申請があります。
+              お客様が延長の決済を済ませました。
               <br />
-              承認または却下してください。
+              何分で再開しますか？
             </p>
-            <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
+            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
               <button
-                onClick={() => handleExtensionResume(extensionNotification.minutes)}
+                onClick={() => handleExtensionResume(10)}
                 style={{
                   background: "linear-gradient(135deg, #c9a8a3, #a87f7a)",
                   color: "#fff",
@@ -1081,7 +1081,26 @@ export default function AdminSession() {
                 onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
                 onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
               >
-                ✅ 承認して延長
+                ▶ 10分で再開
+              </button>
+              <button
+                onClick={() => handleExtensionResume(30)}
+                style={{
+                  background: "linear-gradient(135deg, #c9a8a3, #a87f7a)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "12px",
+                  padding: "16px 32px",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(168,127,122,0.4)",
+                  transition: "transform 0.1s",
+                }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                ▶ 30分で再開
               </button>
               <button
                 onClick={() => setExtensionNotification(null)}
@@ -1099,7 +1118,7 @@ export default function AdminSession() {
                 onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
                 onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
               >
-                ❌ 却下
+                × 閉じる
               </button>
             </div>
           </div>
