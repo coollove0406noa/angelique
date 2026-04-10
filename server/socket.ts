@@ -50,15 +50,13 @@ function startServerTimer(sessionId: number) {
     io?.to(room).emit("timer_tick", { remainingSeconds: current });
 
     if (current <= 0) {
-      // タイマー終了
+      // タイマー終了 → timer_endedのみ送信。session_endedはお客様の選択後に送る
       clearInterval(s.interval!);
       s.interval = null;
       s.status = "ended";
       s.remainingSeconds = 0;
       s.timerStartedAt = null;
       io?.to(room).emit("timer_ended", { sessionId });
-      // 時間切れ時もお客様画面に通知（音声セッションでも画面が切り替わる）
-      io?.to(room).emit("session_ended", { sessionId, carryoverMinutes: 0 });
       // DBを更新
       updateSession(sessionId, {
         status: "paused",
@@ -366,6 +364,13 @@ export function initSocketIO(httpServer: HttpServer) {
         state.interval = null;
       }
       io?.to(room).emit("session_ended", { sessionId, carryoverMinutes: 0 });
+    });
+
+    // 延長確認ダイアログでのお客様の選択を管理者に中継
+    socket.on("client_extension_choice", ({ sessionId, choice }: { sessionId: number; choice: "extend" | "end" }) => {
+      const room = `session_${sessionId}`;
+      socket.to(room).emit("client_extension_choice", { sessionId, choice });
+      console.log(`[Socket.io] client_extension_choice: ${choice} for session ${sessionId}`);
     });
 
     // Session ended by client (customer-initiated)

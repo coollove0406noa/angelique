@@ -311,6 +311,7 @@
   border-radius: 18px 18px 4px 18px;
   padding: 10px 16px;
   max-width: 78%;
+  min-width: 80px;
   width: fit-content;
   font-size: 14px;
   line-height: 1.8;
@@ -325,6 +326,7 @@
   border-radius: 18px 18px 18px 4px;
   padding: 10px 16px;
   max-width: 78%;
+  min-width: 80px;
   width: fit-content;
   font-size: 14px;
   line-height: 1.8;
@@ -339,6 +341,7 @@
   border-radius: 18px 18px 4px 18px;
   padding: 10px 16px;
   max-width: 78%;
+  min-width: 80px;
   width: fit-content;
   font-size: 14px;
   line-height: 1.8;
@@ -394,6 +397,15 @@
 .voice-call-btn-start:disabled {
   opacity: 0.5 !important;
   cursor: not-allowed !important;
+}
+
+/* 音声通話開始ボタン 点滅アニメ（最初の5秒） */
+@keyframes voiceBlink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(76,175,125,0.5); }
+  50%       { opacity: 0.65; box-shadow: 0 0 0 8px rgba(76,175,125,0); }
+}
+.voice-call-btn-blink {
+  animation: voiceBlink 1.2s ease-in-out infinite !important;
 }
 
 .voice-call-btn-end {

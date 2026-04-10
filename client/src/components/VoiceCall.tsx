@@ -21,6 +21,8 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
   const [remoteUserCount, setRemoteUserCount] = useState(0);
   const [callDuration, setCallDuration] = useState(0);
   const [errorDetail, setErrorDetail] = useState<string>("");
+  // 最初の5秒間だけ点滅＋アナウンステキストを表示
+  const [showStartHint, setShowStartHint] = useState(true);
 
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
@@ -223,6 +225,12 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
     toast.info(newMuted ? "マイクをミュートしました" : "マイクのミュートを解除しました");
   }, [isMuted]);
 
+  // 5秒後に点滅・アナウンスを自動消去
+  useEffect(() => {
+    const t = setTimeout(() => setShowStartHint(false), 5000);
+    return () => clearTimeout(t);
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -354,15 +362,28 @@ export default function VoiceCall({ sessionId, role, isSessionActive }: VoiceCal
       <div className="flex items-center gap-2 flex-wrap">
         {/* Step 1: Mic check button (idle state) */}
         {callStatus === "idle" && (
-          <Button
-            onClick={checkMicPermission}
-            disabled={!isSessionActive}
-            className="voice-call-btn-start"
-            size="sm"
-          >
-            <Mic className="w-4 h-4 mr-1.5" />
-            マイクを確認する
-          </Button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+            {showStartHint && isSessionActive && (
+              <p style={{
+                fontSize: "12px",
+                color: "#4caf7d",
+                fontWeight: 600,
+                fontFamily: "'Noto Sans JP', sans-serif",
+                margin: 0,
+              }}>
+                👆 まずこちらをタップしてください
+              </p>
+            )}
+            <Button
+              onClick={() => { setShowStartHint(false); checkMicPermission(); }}
+              disabled={!isSessionActive}
+              className={`voice-call-btn-start${showStartHint && isSessionActive ? " voice-call-btn-blink" : ""}`}
+              size="sm"
+            >
+              <Mic className="w-4 h-4 mr-1.5" />
+              マイクを確認する
+            </Button>
+          </div>
         )}
 
         {/* Mic checking spinner */}

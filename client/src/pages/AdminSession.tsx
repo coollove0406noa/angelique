@@ -77,6 +77,8 @@ export default function AdminSession() {
   // クライアント待機通知
   const [clientWaiting, setClientWaiting] = useState(false);
   const [clientEndedByClient, setClientEndedByClient] = useState(false);
+  // お客様の延長/終了選択通知
+  const [clientExtensionChoice, setClientExtensionChoice] = useState<"extend" | "end" | null>(null);
   // お客様の接続状態（Socket.ioでリアルタイム検知）
   const [clientOnline, setClientOnline] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -198,6 +200,15 @@ export default function AdminSession() {
     socket.on("client_ended_session", () => {
       setClientEndedByClient(true);
       toast.warning("お客様がセッションを終了しました", { duration: 10000 });
+    });
+    // お客様の延長/終了確認ダイアログの選択結果を受信
+    socket.on("client_extension_choice", ({ choice }: { choice: "extend" | "end" }) => {
+      setClientExtensionChoice(choice);
+      if (choice === "extend") {
+        toast.info("✨ お客様が延長を希望しています", { duration: 20000 });
+      } else {
+        toast.warning("🌙 お客様が終了を希望しています", { duration: 20000 });
+      }
     });
     // お客様の接続状態をリアルタイムで受信
     socket.on("client_presence", ({ online }: { online: boolean }) => {
@@ -640,6 +651,26 @@ export default function AdminSession() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* お客様の延長/終了選択通知バッジ */}
+            {clientExtensionChoice && (
+              <div
+                style={{
+                  background: clientExtensionChoice === "extend" ? "#e8f5e9" : "#fce4ec",
+                  border: `1px solid ${clientExtensionChoice === "extend" ? "#4caf50" : "#e91e63"}`,
+                  borderRadius: "8px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  color: clientExtensionChoice === "extend" ? "#1b5e20" : "#880e4f",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                {clientExtensionChoice === "extend"
+                  ? "✨ お客様が延長を希望"
+                  : "🌙 お客様が終了を希望"}
+              </div>
+            )}
             {/* お客様がセッションを終了した通知 */}
             {clientEndedByClient && (
               <div

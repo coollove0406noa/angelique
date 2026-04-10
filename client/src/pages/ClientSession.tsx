@@ -50,6 +50,8 @@ export default function ClientSession() {
   const [timerStatus, setTimerStatus] = useState<"idle" | "active" | "paused" | "ended">("idle");
   const [showExtensionUI, setShowExtensionUI] = useState(false);
   const [extensionWaiting, setExtensionWaiting] = useState(false);
+  // 時間切れ後の延長確認ダイアログ
+  const [showExtensionConfirm, setShowExtensionConfirm] = useState(false);
   // アラームフラグはuseRefで管理してstale closureを防ぐ
   const alert5mFiredRef = useRef(false);
   const alert1mFiredRef = useRef(false);
@@ -171,18 +173,21 @@ export default function ClientSession() {
     socket.on("timer_ended", () => {
       setTimerStatus("ended");
       setRemainingSeconds(0);
-      setShowExtensionUI(true);
+      // 延長確認ダイアログを表示（session_endedはお客様の選択後）
+      setShowExtensionConfirm(true);
     });
 
     socket.on("extension_applied", ({ addMinutes }: { addMinutes: number }) => {
       setExtensionWaiting(false);
       setShowExtensionUI(false);
+      setShowExtensionConfirm(false);
       toast.success(`${addMinutes}分延長されました`);
     });
 
     socket.on("session_ended", () => {
       setTimerStatus("ended");
       setShowExtensionUI(false);
+      setShowExtensionConfirm(false);
       setSessionEndedMessage(true);
     });
 
@@ -314,6 +319,19 @@ export default function ClientSession() {
     socketRef.current?.emit("extension_requested", { sessionId: session.id, minutes: 0 });
     toast.success("占い師に通知しました。しばらくお待ちください。");
   }, [session]);
+
+  // 時間切れ後の延長確認：お客様の選択を管理者に通知
+  const handleExtensionChoice = useCallback((choice: "extend" | "end") => {
+    if (!session) return;
+    setShowExtensionConfirm(false);
+    socketRef.current?.emit("client_extension_choice", { sessionId: session.id, choice });
+    if (choice === "extend") {
+      setShowExtensionUI(true);
+    } else {
+      setClientEnded(true);
+    }
+  }, [session]);
+
   // お客様側からセッションを終了する
   const handleClientEndSession = useCallback(() => {
     if (!session) return;
@@ -487,9 +505,24 @@ export default function ClientSession() {
           <p style={{ color: "#6b5b58", fontSize: "18px", fontWeight: 600, marginBottom: "12px", fontFamily: "'Cormorant Garamond', serif" }}>
             ありがとうございました
           </p>
-          <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8 }}>
+          <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8, marginBottom: "24px" }}>
             またのご利用をお待ちしております。
           </p>
+          <button
+            onClick={() => window.close()}
+            style={{
+              background: "transparent",
+              border: "1px solid #d4bfbb",
+              borderRadius: "24px",
+              padding: "10px 28px",
+              fontSize: "14px",
+              color: "#9e8480",
+              cursor: "pointer",
+              fontFamily: "'Noto Sans JP', sans-serif",
+            }}
+          >
+            画面を閉じる
+          </button>
         </div>
       </div>
     );
@@ -695,6 +728,54 @@ export default function ClientSession() {
         </div>
       )}
 
+      {/* 延長確認ダイアログ（時間切れ直後に表示） */}
+      {showExtensionConfirm && (
+        <div
+          style={{
+            background: "#fff",
+            borderBottom: "1px solid #d4bfbb",
+            padding: "20px 16px",
+            position: "fixed",
+            top: `${totalFixedHeight}px`,
+            left: 0,
+            right: 0,
+            zIndex: 39,
+            boxShadow: "0 4px 16px rgba(107,91,88,0.12)",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "20px",
+              color: "#6b5b58",
+              marginBottom: "6px",
+            }}
+          >
+            お時間になりました
+          </div>
+          <p style={{ fontSize: "13px", color: "#9e8480", marginBottom: "18px" }}>
+            鑑定を延長しますか？
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              className="angelique-btn"
+              onClick={() => handleExtensionChoice("extend")}
+              style={{ padding: "12px 24px", fontSize: "14px" }}
+            >
+              はい（延長する）
+            </button>
+            <button
+              className="angelique-btn-outline"
+              onClick={() => handleExtensionChoice("end")}
+              style={{ padding: "12px 24px", fontSize: "14px" }}
+            >
+              いいえ（終了する）
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Extension UI - fixed固定（タイマーの下に固定表示） */}
       {showExtensionUI && (
         <div
@@ -850,10 +931,25 @@ export default function ClientSession() {
             >
               鑑定が終了しました
             </p>
-            <p style={{ color: "#9e8480", fontSize: "15px", lineHeight: 1.7 }}>
+            <p style={{ color: "#9e8480", fontSize: "15px", lineHeight: 1.7, marginBottom: "24px" }}>
               ありがとうございました。<br />
               またのご利用をお待ちしております。
             </p>
+            <button
+              onClick={() => window.close()}
+              style={{
+                background: "transparent",
+                border: "1px solid #d4bfbb",
+                borderRadius: "24px",
+                padding: "10px 28px",
+                fontSize: "14px",
+                color: "#9e8480",
+                cursor: "pointer",
+                fontFamily: "'Noto Sans JP', sans-serif",
+              }}
+            >
+              画面を閉じる
+            </button>
           </div>
         </div>
       )}
