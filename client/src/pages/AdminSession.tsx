@@ -728,7 +728,7 @@ export default function AdminSession() {
             style={{ minHeight: 0, height: "calc(100vh - 320px)" }}
           >
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3" style={{ paddingTop: "80px" }}>
               {messages.length === 0 && (
                 <div className="flex-1 flex items-center justify-center">
                   <p style={{ color: "#d4bfbb", fontSize: "14px" }}>
@@ -737,64 +737,64 @@ export default function AdminSession() {
                 </div>
               )}
               {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${
-                    msg.sender === "admin"
-                      ? "justify-end"
-                      : msg.sender === "system"
-                      ? "justify-center"
-                      : "justify-start"
-                  }`}
-                >
+                <div key={msg.id}>
                   {msg.sender === "system" ? (
-                    <div className="chat-bubble-system">
-                      <LinkifiedText text={msg.content} />
+                    /* システムメッセージ（中央） */
+                    <div className="flex justify-center">
+                      <div className="chat-bubble-system">
+                        <LinkifiedText text={msg.content} />
+                      </div>
+                    </div>
+                  ) : msg.sender === "admin" ? (
+                    /* 管理者自身のメッセージ（右寄せ） */
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                        {(msg as any).imageUrl ? (
+                          <div>
+                            <img
+                              src={(msg as any).imageUrl}
+                              alt="送信画像"
+                              style={{ maxWidth: "200px", borderRadius: "12px", cursor: "pointer", border: "1px solid #d4bfbb" }}
+                              onClick={() => window.open((msg as any).imageUrl, "_blank")}
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="chat-bubble-admin"
+                            style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" }}
+                          >
+                            <LinkifiedText text={msg.content} />
+                          </div>
+                        )}
+                        <div style={{ fontSize: "10px", color: "#d4bfbb", marginTop: "3px", textAlign: "right" }}>
+                          {format(new Date(msg.createdAt), "HH:mm")}
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
-                      {msg.sender === "client" && (
-                        <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "3px", marginLeft: "4px" }}>
-                          {session?.clientName}
-                        </div>
-                      )}
-                      {/* 画像メッセージ */}
+                    /* お客様のメッセージ（左寄せ） */
+                    <div style={{ display: "flex", justifyContent: "flex-start", flexDirection: "column", alignItems: "flex-start" }}>
+                      <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "3px", marginLeft: "4px" }}>
+                        {session?.clientName}
+                      </div>
                       {(msg as any).imageUrl ? (
                         <div>
                           <img
                             src={(msg as any).imageUrl}
                             alt="送信画像"
-                            style={{
-                              maxWidth: "200px",
-                              borderRadius: "12px",
-                              cursor: "pointer",
-                              border: "1px solid #d4bfbb",
-                            }}
+                            style={{ maxWidth: "200px", borderRadius: "12px", cursor: "pointer", border: "1px solid #d4bfbb" }}
                             onClick={() => window.open((msg as any).imageUrl, "_blank")}
                           />
                         </div>
                       ) : (
                         <div
-                          className={
-                            msg.sender === "admin" ? "chat-bubble-admin" : "chat-bubble-client"
-                          }
-                          style={{
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                            overflowWrap: "break-word",
-                          }}
+                          className="chat-bubble-client"
+                          style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" }}
                         >
                           <LinkifiedText text={msg.content} />
                         </div>
                       )}
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#d4bfbb",
-                          marginTop: "3px",
-                          textAlign: msg.sender === "admin" ? "right" : "left",
-                        }}
-                      >
+                      <div style={{ fontSize: "10px", color: "#d4bfbb", marginTop: "3px", textAlign: "left" }}>
                         {format(new Date(msg.createdAt), "HH:mm")}
                       </div>
                     </div>

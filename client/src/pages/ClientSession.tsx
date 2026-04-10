@@ -527,30 +527,10 @@ export default function ClientSession() {
           <p style={{ color: "#6b5b58", fontSize: "18px", fontWeight: 600, marginBottom: "12px", fontFamily: "'Cormorant Garamond', serif" }}>
             ありがとうございました
           </p>
-          <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8, marginBottom: "24px" }}>
-            またのご利用をお待ちしております。
+          <p style={{ color: "#9e8480", fontSize: "14px", lineHeight: 1.8 }}>
+            ご利用ありがとうございました。<br />
+            このページを閉じてください。
           </p>
-          {showCloseMessage ? (
-            <p style={{ color: "#9e8480", fontSize: "13px", lineHeight: 1.7 }}>
-              ブラウザの戻るボタンでお戻りください
-            </p>
-          ) : (
-            <button
-              onClick={handleClose}
-              style={{
-                background: "transparent",
-                border: "1px solid #d4bfbb",
-                borderRadius: "24px",
-                padding: "10px 28px",
-                fontSize: "14px",
-                color: "#9e8480",
-                cursor: "pointer",
-                fontFamily: "'Noto Sans JP', sans-serif",
-              }}
-            >
-              画面を閉じる
-            </button>
-          )}
         </div>
       </div>
     );
@@ -984,31 +964,10 @@ export default function ClientSession() {
             >
               鑑定が終了しました
             </p>
-            <p style={{ color: "#9e8480", fontSize: "15px", lineHeight: 1.7, marginBottom: "24px" }}>
-              ありがとうございました。<br />
-              またのご利用をお待ちしております。
+            <p style={{ color: "#9e8480", fontSize: "15px", lineHeight: 1.8 }}>
+              ご利用ありがとうございました。<br />
+              このページを閉じてください。
             </p>
-            {showCloseMessage ? (
-              <p style={{ color: "#9e8480", fontSize: "13px", lineHeight: 1.7 }}>
-                ブラウザの戻るボタンでお戻りください
-              </p>
-            ) : (
-              <button
-                onClick={handleClose}
-                style={{
-                  background: "transparent",
-                  border: "1px solid #d4bfbb",
-                  borderRadius: "24px",
-                  padding: "10px 28px",
-                  fontSize: "14px",
-                  color: "#9e8480",
-                  cursor: "pointer",
-                  fontFamily: "'Noto Sans JP', sans-serif",
-                }}
-              >
-                画面を閉じる
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -1024,7 +983,7 @@ export default function ClientSession() {
         {/* Messages */}
         <div
           className="flex-1 overflow-y-auto p-4 flex flex-col gap-3"
-          style={{ minHeight: 0 }}
+          style={{ minHeight: 0, paddingTop: "80px" }}
         >
           {/* Welcome message */}
           {messages.length === 0 && timerStatus === "idle" && (
@@ -1049,87 +1008,75 @@ export default function ClientSession() {
           )}
 
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${
-                msg.sender === "client"
-                  ? "justify-end"
-                  : msg.sender === "system"
-                  ? "justify-center"
-                  : "justify-start"
-              }`}
-            >
+            <div key={msg.id}>
               {msg.sender === "system" ? (
-                <div className="chat-bubble-system">
-                  <LinkifiedText text={msg.content} />
+                /* システムメッセージ（中央） */
+                <div className="flex justify-center">
+                  <div className="chat-bubble-system">
+                    <LinkifiedText text={msg.content} />
+                  </div>
+                </div>
+              ) : msg.sender === "client" ? (
+                /* 自分のメッセージ（右寄せ） */
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                    {msg.imageUrl ? (
+                      <div>
+                        <img
+                          src={msg.imageUrl}
+                          alt="送信画像"
+                          style={{ maxWidth: "240px", borderRadius: "12px", cursor: "pointer", border: "1px solid #d4bfbb" }}
+                          onClick={() => window.open(msg.imageUrl!, "_blank")}
+                        />
+                        <div style={{ marginTop: "4px" }}>
+                          <a
+                            href={msg.imageUrl}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: "11px", color: "#c9a8a3", textDecoration: "underline" }}
+                          >
+                            ↓ 画像を保存
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="chat-bubble-client-self"
+                        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" }}
+                      >
+                        <LinkifiedText text={msg.content} />
+                      </div>
+                    )}
+                    <div style={{ fontSize: "10px", color: "#d4bfbb", marginTop: "3px", textAlign: "right" }}>
+                      {format(new Date(msg.createdAt), "HH:mm")}
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
-                  {msg.sender === "admin" && (
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "#9e8480",
-                        marginBottom: "3px",
-                        marginLeft: "4px",
-                      }}
-                    >
-                      angelique
-                    </div>
-                  )}
-                  {/* 画像メッセージ */}
+                /* 相手のメッセージ（左寄せ） */
+                <div style={{ display: "flex", justifyContent: "flex-start", flexDirection: "column", alignItems: "flex-start" }}>
+                  <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "3px", marginLeft: "4px" }}>
+                    angelique
+                  </div>
                   {msg.imageUrl ? (
                     <div>
                       <img
                         src={msg.imageUrl}
                         alt="送信画像"
-                        style={{
-                          maxWidth: "240px",
-                          borderRadius: "12px",
-                          cursor: "pointer",
-                          border: "1px solid #d4bfbb",
-                        }}
+                        style={{ maxWidth: "240px", borderRadius: "12px", cursor: "pointer", border: "1px solid #d4bfbb" }}
                         onClick={() => window.open(msg.imageUrl!, "_blank")}
                       />
-                      {/* お客様は画像を保存できる */}
-                      <div style={{ marginTop: "4px" }}>
-                        <a
-                          href={msg.imageUrl}
-                          download
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            fontSize: "11px",
-                            color: "#c9a8a3",
-                            textDecoration: "underline",
-                          }}
-                        >
-                          ↓ 画像を保存
-                        </a>
-                      </div>
                     </div>
                   ) : (
                     <div
-                      className={
-                        msg.sender === "client" ? "chat-bubble-client-self" : "chat-bubble-client"
-                      }
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        overflowWrap: "break-word",
-                      }}
+                      className="chat-bubble-client"
+                      style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" }}
                     >
                       <LinkifiedText text={msg.content} />
                     </div>
                   )}
-                  <div
-                    style={{
-                      fontSize: "10px",
-                      color: "#d4bfbb",
-                      marginTop: "3px",
-                      textAlign: msg.sender === "client" ? "right" : "left",
-                    }}
-                  >
+                  <div style={{ fontSize: "10px", color: "#d4bfbb", marginTop: "3px", textAlign: "left" }}>
                     {format(new Date(msg.createdAt), "HH:mm")}
                   </div>
                 </div>
