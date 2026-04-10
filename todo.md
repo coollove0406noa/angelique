@@ -180,3 +180,11 @@
 - [x] 6. チャット吹き出しの幅を広くして折り返し改善（max-width 85%、word-break: break-word）
 - [x] 7. 吹き出し色変更：管理者=くすみピンク、お客様=くすみグリーン
 - [x] 8. タロットカード画像22枚をCDNアップロードしてWaitingRoomに反映
+
+## 5項目の修正（3回目）
+
+- [x] 1. お客様接続状態をSocket.ioでリアルタイム検知し管理者画面に表示（🟢待機中/⚪未接続）
+- [x] 2. セッション開始一発動作：timer_startイベントのみでお客様画面が即切り替わる
+- [x] 3. サーバー側setIntervalで毎秒timer_tickをブロードキャスト（クライアント側setInterval不要）
+- [x] 4. タイマー・延長確認バー・終了メッセージをposition:fixedで画面上部に固定
+- [x] 5. チャット吹き出しmax-widthを７８％に設定（overflow-wrap: anywhere追加）

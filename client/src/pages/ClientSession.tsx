@@ -179,43 +179,26 @@ export default function ClientSession() {
       toast.success("占い師が準備できました。セッションを開始します。");
     });
 
+    // サーバーからの毎秒タイマーティックを受信（クライアント側setInterval不要）
+    socket.on("timer_tick", ({ remainingSeconds: rs }: { remainingSeconds: number }) => {
+      setRemainingSeconds(rs);
+      // 5分アラーム
+      if (rs <= ALERT_THRESHOLD && rs > ALERT_THRESHOLD - 2 && !alert5mFiredRef.current) {
+        alert5mFiredRef.current = true;
+        toast.warning("⚠ 残り5分です");
+      }
+      // 1分アラーム
+      if (rs <= 60 && rs > 58 && !alert1mFiredRef.current) {
+        alert1mFiredRef.current = true;
+        toast.warning("⚠ 残り1分です！");
+      }
+    });
+
     socketRef.current = socket;
     return () => { socket.disconnect(); };
   }, [session?.id, token]);
 
-  // Timer countdown - サーバー基準時刻から実経過時間を計算
-  useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    if (timerStatus === "active" && timerStartedAt !== null) {
-      // remainingSecondsはサーバーから受け取った「timerStartedAt時点での残り秒数」
-      // 実際の残り = remainingSeconds - (現在時刻 - timerStartedAt) / 1000
-      const baseRemaining = remainingSeconds;
-      const baseTime = timerStartedAt;
-
-      timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - baseTime) / 1000);
-        const current = Math.max(0, baseRemaining - elapsed);
-
-        if (current <= ALERT_THRESHOLD && current > ALERT_THRESHOLD - 2 && !alert5mFiredRef.current) {
-          alert5mFiredRef.current = true;
-          toast.warning("⚠ 残り5分です");
-        }
-        if (current <= 60 && current > 58 && !alert1mFiredRef.current) {
-          alert1mFiredRef.current = true;
-          toast.warning("⚠ 残り1分です！");
-        }
-
-        if (current <= 0) {
-          clearInterval(timerRef.current!);
-          setTimerStatus("ended");
-          setShowExtensionUI(true);
-        }
-      }, 1000);
-    }
-
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [timerStatus, timerStartedAt]);
+  // タイマーはサーバー側のセットインターバルからtimer_tickで受信するため、クライアント側setIntervalは不要
 
   // Auto-scroll
   useEffect(() => {
@@ -599,7 +582,7 @@ export default function ClientSession() {
         </div>
       )}
 
-      {/* Timer Bar - 固定（スクロールしても常に表示） */}
+      {/* Timer Bar - fixed固定（スクロールしても常に表示） */}
       <div
         style={{
           background: isWarning ? "#fff3e0" : "#f3e7e5",
@@ -607,8 +590,10 @@ export default function ClientSession() {
           padding: "12px 16px",
           textAlign: "center",
           transition: "background 0.5s",
-          position: "sticky",
+          position: "fixed",
           top: "53px",
+          left: 0,
+          right: 0,
           zIndex: 40,
         }}
       >
@@ -643,15 +628,17 @@ export default function ClientSession() {
         )}
       </div>
 
-      {/* Voice Call Panel (voice sessions only) - 固定 */}
+      {/* Voice Call Panel (voice sessions only) - fixed固定 */}
       {session?.sessionType === "voice" && (
         <div
           style={{
             padding: "12px 16px",
             background: "#f9f5f4",
             borderBottom: "1px solid #d4bfbb",
-            position: "sticky",
+            position: "fixed",
             top: "101px",
+            left: 0,
+            right: 0,
             zIndex: 35,
           }}
         >
@@ -663,15 +650,17 @@ export default function ClientSession() {
         </div>
       )}
 
-      {/* Extension UI - 固定（タイマーの下に固定表示） */}
+      {/* Extension UI - fixed固定（タイマーの下に固定表示） */}
       {showExtensionUI && (
         <div
           style={{
             background: "#fff",
             borderBottom: "1px solid #d4bfbb",
             padding: "16px",
-            position: "sticky",
+            position: "fixed",
             top: session?.sessionType === "voice" ? "149px" : "101px",
+            left: 0,
+            right: 0,
             zIndex: 38,
             boxShadow: "0 2px 8px rgba(107,91,88,0.08)",
           }}
@@ -748,8 +737,10 @@ export default function ClientSession() {
             background: "#fdf5f3",
             borderBottom: "1px solid #d4bfbb",
             padding: "14px 16px",
-            position: "sticky",
+            position: "fixed",
             top: session?.sessionType === "voice" ? "149px" : "101px",
+            left: 0,
+            right: 0,
             zIndex: 37,
             boxShadow: "0 2px 8px rgba(107,91,88,0.08)",
             textAlign: "center",
@@ -822,6 +813,9 @@ export default function ClientSession() {
         </div>
       )}
 
+      {/* fixedバー（ヘッダー53px + タイマーバー約48px）の分だけ上部にスペースを確保 */}
+      <div style={{ height: "101px" }} />
+
       {/* Chat Area */}
       <div
         className="flex-1 flex flex-col"
@@ -870,7 +864,7 @@ export default function ClientSession() {
                   <LinkifiedText text={msg.content} />
                 </div>
               ) : (
-                <div style={{ maxWidth: "88%" }}>
+                <div style={{ maxWidth: "100%", width: "100%" }}>
                   {msg.sender === "admin" && (
                     <div
                       style={{

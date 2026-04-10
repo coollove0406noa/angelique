@@ -310,10 +310,12 @@
   color: #4a3b38;
   border-radius: 18px 18px 4px 18px;
   padding: 10px 16px;
-  max-width: 85%;
+  max-width: 78%;
+  width: fit-content;
   font-size: 14px;
   line-height: 1.8;
   word-break: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 /* お客様側の吹き出し（くすみグリーン系 - AdminSession内で左寄せ） */
@@ -322,10 +324,12 @@
   color: #2a3e2a;
   border-radius: 18px 18px 18px 4px;
   padding: 10px 16px;
-  max-width: 85%;
+  max-width: 78%;
+  width: fit-content;
   font-size: 14px;
   line-height: 1.8;
   word-break: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 /* お客様自身の吹き出し（ClientSession内で自分のメッセージ - 右寄せ・くすみピンク） */
@@ -334,10 +338,12 @@
   color: #4a3b38;
   border-radius: 18px 18px 4px 18px;
   padding: 10px 16px;
-  max-width: 85%;
+  max-width: 78%;
+  width: fit-content;
   font-size: 14px;
   line-height: 1.8;
   word-break: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 .chat-bubble-system {

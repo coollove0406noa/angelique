@@ -77,6 +77,8 @@ export default function AdminSession() {
   // クライアント待機通知
   const [clientWaiting, setClientWaiting] = useState(false);
   const [clientEndedByClient, setClientEndedByClient] = useState(false);
+  // お客様の接続状態（Socket.ioでリアルタイム検知）
+  const [clientOnline, setClientOnline] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -196,50 +198,36 @@ export default function AdminSession() {
       setClientEndedByClient(true);
       toast.warning("お客様がセッションを終了しました", { duration: 10000 });
     });
+    // お客様の接続状態をリアルタイムで受信
+    socket.on("client_presence", ({ online }: { online: boolean }) => {
+      setClientOnline(online);
+      if (online) {
+        setClientWaiting(true);
+        toast.info("🟢 お客様が接続しました", { duration: 5000 });
+      } else {
+        toast.info("⚪ お客様が離線しました", { duration: 4000 });
+      }
+    });
+    // サーバーからの毎秒タイマーティックを受信（クライアント側setInterval不要）
+    socket.on("timer_tick", ({ remainingSeconds: rs }: { remainingSeconds: number }) => {
+      setRemainingSeconds(rs);
+      remainingSecondsRef.current = rs;
+      // 5分アラーム
+      if (rs <= 5 * 60 && rs > 5 * 60 - 2 && !alert5mFiredRef.current) {
+        alert5mFiredRef.current = true;
+        triggerChime("5min");
+      }
+      // 1分アラーム
+      if (rs <= 60 && rs > 58 && !alert1mFiredRef.current) {
+        alert1mFiredRef.current = true;
+        triggerChime("1min");
+      }
+    });
     socketRef.current = socket;
     return () => { socket.disconnect(); };
   }, [sessionId, isAuthenticated]);
 
-  // Timer countdown - refを使ってstale closureを防ぐ
-  useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    if (timerStatus === "active" && timerStartedAt !== null) {
-      timerRef.current = setInterval(() => {
-        const tsa = timerStartedAtRef.current;
-        const base = remainingSecondsRef.current;
-        if (tsa === null) return;
-        const elapsed = Math.floor((Date.now() - tsa) / 1000);
-        const current = Math.max(0, base - elapsed);
-
-        // 5-minute alert (once)
-        if (current <= 5 * 60 && current > 5 * 60 - 2 && !alert5mFiredRef.current) {
-          alert5mFiredRef.current = true;
-          triggerChime("5min");
-        }
-        // 1-minute alert (once)
-        if (current <= 60 && current > 58 && !alert1mFiredRef.current) {
-          alert1mFiredRef.current = true;
-          triggerChime("1min");
-        }
-
-        // Timer ended
-        if (current <= 0) {
-          clearInterval(timerRef.current!);
-          setTimerStatus("ended");
-          socketRef.current?.emit("timer_end", { sessionId });
-          updateSessionMutation.mutate({
-            id: sessionId,
-            status: "paused",
-            remainingSeconds: 0,
-            timerStartedAt: null,
-          });
-        }
-      }, 1000);
-    }
-
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [timerStatus, timerStartedAt]);
+  // タイマーはサーバー側のセットインターバルからtimer_tickで受信するため、クライアント側setIntervalは不要
 
   // Auto-scroll chat
   useEffect(() => {
@@ -485,14 +473,8 @@ export default function AdminSession() {
     }
   }, [sessionId, navigate]);
 
-  // Display timer - refから計算してリアルタイム表示
-  const displaySeconds = (() => {
-    if (timerStatus === "active" && timerStartedAt) {
-      const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
-      return Math.max(0, remainingSeconds - elapsed);
-    }
-    return remainingSeconds;
-  })();
+  // Display timer - サーバーからtimer_tickで受信した値をそのまま使用
+  const displaySeconds = remainingSeconds;
 
   const timerMins = Math.floor(displaySeconds / 60);
   const timerSecs = displaySeconds % 60;
@@ -517,11 +499,13 @@ export default function AdminSession() {
     >
       <AngeliqueHeader isAdmin onLogout={() => logoutMutation.mutate()} />
 
-      {/* ── 上部固定バー：タイマー + 終了ボタン ─────────────────────────── */}
+      {/* ── 上部固定バー：タイマー + 終了ボタン ─────────────────────────────────── */}
       <div
         style={{
-          position: "sticky",
+          position: "fixed",
           top: "53px",
+          left: 0,
+          right: 0,
           zIndex: 45,
           background: isWarning ? "#fff3e0" : "#f3e7e5",
           borderBottom: "1px solid #d4bfbb",
@@ -552,6 +536,25 @@ export default function AdminSession() {
           {isWarning && timerStatus === "active" && (
             <span style={{ fontSize: "12px", color: "#f57c00", fontWeight: 600 }}>⚠ 残り5分</span>
           )}
+          {/* お客様の接続状態バッジ */}
+          <div
+            style={{
+              marginLeft: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              background: clientOnline ? "#e8f5e9" : "#f5f5f5",
+              border: `1px solid ${clientOnline ? "#81c784" : "#e0e0e0"}`,
+              borderRadius: "12px",
+              padding: "3px 10px",
+              fontSize: "12px",
+              color: clientOnline ? "#2e7d32" : "#9e9e9e",
+              transition: "all 0.3s",
+            }}
+          >
+            <span style={{ fontSize: "9px" }}>{clientOnline ? "🟢" : "⚪"}</span>
+            {clientOnline ? "お客様が待機中" : "未接続"}
+          </div>
         </div>
 
         {/* タイマーコントロール + 終了ボタン */}
@@ -610,6 +613,9 @@ export default function AdminSession() {
           </button>
         </div>
       </div>
+
+      {/* fixedバー（ヘッダー53px + タイマーバー約60px）の分だけ上部にスペースを確保 */}
+      <div style={{ height: "113px" }} />
 
       <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full px-4 py-4 gap-4">
         {/* Session Info Bar */}
