@@ -199,3 +199,25 @@
 - [x] 6. WaitingRoom: BGM音量を0.15に変更
 - [x] 7. VoiceCall.tsx: マイク確認→通話開始の2段階フロー（2段階開始フローはVoiceCallで実現）
 - [x] 8. AdminSession: 延長申請を全画面オーバーレイポップアップ（position:fixed・大きな🔔テキスト・承認/却下ボタン）に変更
+
+## 8項目の修正（5回目）
+
+- [ ] 1. セッション開始フロー見直し（ダッシュボード「入室」→セッションルーム「セッション開始」2段階）
+- [ ] 2. タイマー同期修正（Socket.ioリスナーoffしてから再登録）
+- [ ] 3. Agoraトークン生成修正（agora-access-tokenで正しくトークン生成・App Certificate使用）
+- [ ] 4. お客様接続状態表示修正（接続中なのに「待機中」と表示される問題）
+- [ ] 5. 鑑定士側チャット改行修正（white-space: pre-wrapを管理者側にも適用）
+- [ ] 6. お客様終了ボタン固定表示（position: fixedで常に見える場所に固定）
+- [ ] 7. BGM ON/OFFバグ修正（オンにするとオフにできなくなる問題）
+- [ ] 8. 音声終了時お客様画面切替（session_endedイベントを音声セッションにも送信）
+
+## 2026-04-10 修正8項目
+
+- [x] 1. セッション開始フロー：「入室」→「セッション開始」の2段階フローに変更
+- [x] 2. タイマー同期：Socket.ioリスナーをoff()後に再登録（重複防止）
+- [x] 3. Agoraトークン生成：agora-access-tokenでRTCトークンを生成してクライアントに渡す
+- [x] 4. お客様接続状態：waiting_room_joinでもclient_presenceをonlineに、client_waitingでclientOnlineをtrueに
+- [x] 5. 鑑定士側チャット改行：white-space: pre-wrapは既に全クラスに適用済み（修正不要）
+- [x] 6. お客様終了ボタン固定：headerをposition: fixedに変更
+- [x] 7. BGM ON/OFF：フェードタイマーのクリア処理を改善、audioRefがnullの場合の対応追加
+- [x] 8. 音声終了時お客様画面切替：timer_end・自動終了時にsession_endedも送信

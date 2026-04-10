@@ -57,6 +57,8 @@ function startServerTimer(sessionId: number) {
       s.remainingSeconds = 0;
       s.timerStartedAt = null;
       io?.to(room).emit("timer_ended", { sessionId });
+      // 時間切れ時もお客様画面に通知（音声セッションでも画面が切り替わる）
+      io?.to(room).emit("session_ended", { sessionId, carryoverMinutes: 0 });
       // DBを更新
       updateSession(sessionId, {
         status: "paused",
@@ -159,7 +161,13 @@ export function initSocketIO(httpServer: HttpServer) {
     // Waiting room: client joined waiting room (for admin to know)
     socket.on("waiting_room_join", ({ sessionId }) => {
       const room = `session_${sessionId}`;
+      // ウェイティングルームに入ったお客様のソケットを登録（接続状態をonlineに）
+      clientPresence.set(sessionId, socket.id);
+      socket.data.sessionId = sessionId;
+      socket.data.role = "client";
       socket.to(room).emit("client_waiting", { sessionId });
+      // 管理者に接続状態も通知
+      socket.to(room).emit("client_presence", { online: true });
       console.log(`[Socket.io] Client waiting in room ${room}`);
     });
 
@@ -284,6 +292,8 @@ export function initSocketIO(httpServer: HttpServer) {
       });
       const room = `session_${sessionId}`;
       io?.to(room).emit("timer_ended", { sessionId });
+      // 音声セッション終了時もお客様画面に通知（session_endedも送信）
+      io?.to(room).emit("session_ended", { sessionId, carryoverMinutes: 0 });
     });
 
     // Extension request (client -> admin)

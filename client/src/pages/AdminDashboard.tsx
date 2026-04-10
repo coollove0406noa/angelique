@@ -72,15 +72,10 @@ export default function AdminDashboard() {
     { refetchInterval: 10000 }
   );
 
-  const startSession = trpc.sessions.start.useMutation({
-    onSuccess: (data, vars) => {
-      // Socket.ioでお客様画面に「セッション開始」を通知
-      socketRef.current?.emit("session_start_notify", { sessionId: vars.id });
-      toast.success("セッションを開始しました");
-      navigate(`/admin/session/${vars.id}`);
-    },
-    onError: (e) => toast.error(e.message),
-  });
+  // 「入室」ボタン：セッションルームに入る（DBはまだscheduledのまま）
+  const handleEnterRoom = (sessionId: number) => {
+    navigate(`/admin/session/${sessionId}`);
+  };
 
   const logoutMutation = trpc.admin.logout.useMutation({
     onSuccess: () => refetchAuth(),
@@ -162,8 +157,7 @@ export default function AdminDashboard() {
                   key={s.id}
                   session={s as unknown as Session}
                   onOpen={() => navigate(`/admin/session/${s.id}`)}
-                  onStart={() => startSession.mutate({ id: s.id })}
-                  isStarting={startSession.isPending}
+                  onEnterRoom={() => handleEnterRoom(s.id)}
                 />
               ))}
             </div>
@@ -182,8 +176,7 @@ export default function AdminDashboard() {
                   key={s.id}
                   session={s as unknown as Session}
                   onOpen={() => navigate(`/admin/session/${s.id}`)}
-                  onStart={() => startSession.mutate({ id: s.id })}
-                  isStarting={startSession.isPending}
+                  onEnterRoom={() => handleEnterRoom(s.id)}
                 />
               ))}
             </div>
@@ -342,13 +335,11 @@ function QRModal({ url, clientName, onClose }: { url: string; clientName: string
 function SessionCard({
   session,
   onOpen,
-  onStart,
-  isStarting,
+  onEnterRoom,
 }: {
   session: Session;
   onOpen: () => void;
-  onStart: () => void;
-  isStarting: boolean;
+  onEnterRoom: () => void;
 }) {
   const isActive = session.status === "active" || session.status === "paused";
   const remaining = getRemainingDisplay(session);
@@ -424,11 +415,10 @@ function SessionCard({
         {session.status === "scheduled" && (
           <button
             className="angelique-btn"
-            onClick={onStart}
-            disabled={isStarting}
+            onClick={onEnterRoom}
             style={{ padding: "8px 20px", fontSize: "13px" }}
           >
-            開始
+            入室
           </button>
         )}
         {isActive && (
@@ -437,7 +427,7 @@ function SessionCard({
             onClick={onOpen}
             style={{ padding: "8px 20px", fontSize: "13px" }}
           >
-            チャット画面へ
+            入室
           </button>
         )}
       </div>

@@ -488,8 +488,10 @@ export default function ClientSession() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          position: "sticky",
+          position: "fixed",
           top: 0,
+          left: 0,
+          right: 0,
           zIndex: 50,
         }}
       >
@@ -834,7 +836,7 @@ export default function ClientSession() {
       )}
 
       {/* fixedバー（ヘッダー53px + タイマーバー約48px）の分だけ上部にスペースを確保 */}
-      <div style={{ height: "101px" }} />
+      <div style={{ height: session?.sessionType === "voice" ? "149px" : "101px" }} />
 
       {/* Chat Area */}
       <div

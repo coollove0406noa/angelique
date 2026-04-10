@@ -136,17 +136,18 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
   // BGM ON/OFF トグル
   const toggleBgm = useCallback(async () => {
     if (!bgmEnabled) {
-      // 初回 or 再開
+      // BGMをオンにする
       setBgmEnabled(true);
       if (!bgmStarted) {
+        // 初回起動
         setBgmStarted(true);
         playTrack(pickNextTrack());
-      } else {
-        audioRef.current?.play().catch(() => {});
-        // フェードイン
-        const target = 0.15;
-        if (audioRef.current) audioRef.current.volume = 0;
+      } else if (audioRef.current) {
+        // 既存のオーディオを再生
+        audioRef.current.volume = 0;
+        audioRef.current.play().catch(() => {});
         if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
+        const target = 0.15;
         const step = target / 20;
         fadeTimerRef.current = setInterval(() => {
           if (!audioRef.current) return;
@@ -154,28 +155,43 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           audioRef.current.volume = v;
           if (v >= target) clearInterval(fadeTimerRef.current!);
         }, 50);
+      } else {
+        // audioRefがない場合は新しく再生
+        setBgmStarted(true);
+        playTrack(pickNextTrack());
       }
     } else {
-      // BGM完全停止（フェードアウト後にpause + currentTime=0）
+      // BGMをオフにする（フェードアウト後に完全停止）
       setBgmEnabled(false);
+      // フェードタイマーを必ずクリア
+      if (fadeTimerRef.current) {
+        clearInterval(fadeTimerRef.current);
+        fadeTimerRef.current = null;
+      }
       const audio = audioRef.current;
       if (!audio) return;
-      if (fadeTimerRef.current) clearInterval(fadeTimerRef.current);
       const startVol = audio.volume;
       if (startVol <= 0) {
+        // 既に音量0ならそのまま停止
         audio.pause();
         audio.currentTime = 0;
         return;
       }
+      // フェードアウトしてから停止
       const step = startVol / 20;
       fadeTimerRef.current = setInterval(() => {
-        if (!audioRef.current) return;
+        if (!audioRef.current) {
+          clearInterval(fadeTimerRef.current!);
+          fadeTimerRef.current = null;
+          return;
+        }
         const v = Math.max(0, audioRef.current.volume - step);
         audioRef.current.volume = v;
         if (v <= 0) {
           clearInterval(fadeTimerRef.current!);
+          fadeTimerRef.current = null;
           audioRef.current.pause();
-          audioRef.current.currentTime = 0; // 完全停止（再生位置もリセット）
+          audioRef.current.currentTime = 0;
         }
       }, 50);
     }

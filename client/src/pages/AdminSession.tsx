@@ -191,7 +191,8 @@ export default function AdminSession() {
     // クライアントがウェイティングルームに入ったことを通知
     socket.on("client_waiting", () => {
       setClientWaiting(true);
-      toast.info("お客様がウェイティングルームで待機中です", { duration: 6000 });
+      setClientOnline(true); // ウェイティングルームに入った場合も接続中とみなす
+      toast.info("🟢 お客様が接続し、ウェイティングルームで待機中です", { duration: 6000 });
     });
     // お客様がセッションを終了した通知
     socket.on("client_ended_session", () => {
@@ -209,6 +210,8 @@ export default function AdminSession() {
       }
     });
     // サーバーからの毎秒タイマーティックを受信（クライアント側setInterval不要）
+    // timer_tickは必ずoffしてから再登録（重複防止）
+    socket.off("timer_tick");
     socket.on("timer_tick", ({ remainingSeconds: rs }: { remainingSeconds: number }) => {
       setRemainingSeconds(rs);
       remainingSecondsRef.current = rs;
@@ -224,7 +227,11 @@ export default function AdminSession() {
       }
     });
     socketRef.current = socket;
-    return () => { socket.disconnect(); };
+    return () => {
+      socket.off("timer_tick");
+      socket.removeAllListeners();
+      socket.disconnect();
+    };
   }, [sessionId, isAuthenticated]);
 
   // タイマーはサーバー側のセットインターバルからtimer_tickで受信するため、クライアント側setIntervalは不要
@@ -297,9 +304,9 @@ export default function AdminSession() {
     });
   }, [session, sessionId]);
 
-  // セッション開始通知（ウェイティングルームのクライアントに通知）
-  // timer_start だけで timer_update が全クライアントにブロードキャストされ、
-  // ClientSession.tsx の timer_update ハンドラーが showWaitingRoom を false にする
+  // セッション開始：「セッション開始」ボタンを押した瞬間を起点にタイマースタート
+  // timer_start → サーバーが timer_update + session_started をルーム全体にブロードキャスト
+  // お客様画面は timer_update を受信した瞬間にウェイティングルームから切り替わる
   const handleStartSession = useCallback(() => {
     if (!session) return;
     const totalSeconds = (session.durationMinutes + session.carryoverMinutes) * 60;
@@ -312,10 +319,9 @@ export default function AdminSession() {
     alert5mFiredRef.current = false;
     alert1mFiredRef.current = false;
     setClientWaiting(false);
-    // timer_start → サーバーが timer_update をルーム全体にブロードキャスト
-    // これだけでお客様画面が自動的にウェイティングルームから切り替わる
+    // timer_startをサーバーに送信（サーバーがタイマーを開始し、timer_update + session_startedを全クライアントに配信）
     socketRef.current?.emit("timer_start", { sessionId, remainingSeconds: totalSeconds });
-    // DBを更新
+    // DBを更新（ステータスをactiveにし、開始時刻を記録）
     updateSessionMutation.mutate({
       id: sessionId,
       status: "active",
@@ -323,7 +329,7 @@ export default function AdminSession() {
       remainingSeconds: totalSeconds,
       timerStartedAt: now,
     });
-    toast.success("セッションを開始しました");
+    toast.success("セッションを開始しました。タイマーがスタートしました。");
   }, [session, sessionId]);
 
   const handlePauseTimer = useCallback(() => {
@@ -553,7 +559,7 @@ export default function AdminSession() {
             }}
           >
             <span style={{ fontSize: "9px" }}>{clientOnline ? "🟢" : "⚪"}</span>
-            {clientOnline ? "お客様が待機中" : "未接続"}
+            {clientOnline ? "お客様接続中" : "未接続"}
           </div>
         </div>
 
@@ -563,14 +569,17 @@ export default function AdminSession() {
             <button
               className="angelique-btn"
               onClick={handleStartSession}
+              disabled={!clientOnline}
+              title={!clientOnline ? "お客様の接続を待ってください" : "セッションを開始する"}
               style={{
                 padding: "8px 16px",
                 fontSize: "13px",
                 position: "relative",
-                background: clientWaiting ? "#c9a8a3" : undefined,
+                background: clientOnline ? "#c9a8a3" : undefined,
+                opacity: clientOnline ? 1 : 0.5,
               }}
             >
-              {clientWaiting && (
+              {clientOnline && (
                 <span
                   style={{
                     position: "absolute",
@@ -578,7 +587,7 @@ export default function AdminSession() {
                     right: "-4px",
                     width: "10px",
                     height: "10px",
-                    background: "#f57c00",
+                    background: "#4caf50",
                     borderRadius: "50%",
                   }}
                 />

@@ -408,8 +408,9 @@ const settingsRouter = router({
 
 // ── Agora RTC ─────────────────────────────────────────────────────────────
 
-const AGORA_APP_ID = "f5ca2b3f054945b5a9fffd388a26366a";
-const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || "";
+// App ID と App Certificate は環境変数から取得（環境変数が未設定の場合はハードコード値を使用）
+const AGORA_APP_ID = process.env.AGORA_APP_ID || "f5ca2b3f054945b5a9fffd388a26366a";
+const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || "266b1950da144fd0b6fca857ba02fefd";
 
 const agoraRouter = router({
   getToken: publicProcedure
@@ -421,19 +422,12 @@ const agoraRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      // If no certificate is set, return null token (testing mode)
-      if (!AGORA_APP_CERTIFICATE) {
-        return {
-          token: null,
-          appId: AGORA_APP_ID,
-          channelName: input.channelName,
-          uid: input.uid,
-          note: "No certificate set, using testing mode (no token)",
-        };
-      }
-
       try {
-        const { RtcTokenBuilder, RtcRole } = await import("agora-access-token");
+        // agora-access-token is a CommonJS module, use createRequire for compatibility
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        const agoraToken = require("agora-access-token");
+        const { RtcTokenBuilder, RtcRole } = agoraToken;
         const role = input.role === "publisher" ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
         const expireTime = 3600; // 1 hour
         const currentTime = Math.floor(Date.now() / 1000);
@@ -448,6 +442,7 @@ const agoraRouter = router({
           privilegeExpireTime
         );
 
+        console.log(`[Agora] Token generated for channel ${input.channelName}, uid ${input.uid}`);
         return {
           token,
           appId: AGORA_APP_ID,
@@ -456,13 +451,7 @@ const agoraRouter = router({
         };
       } catch (error) {
         console.error("[Agora] Token generation failed:", error);
-        return {
-          token: null,
-          appId: AGORA_APP_ID,
-          channelName: input.channelName,
-          uid: input.uid,
-          error: "Token generation failed",
-        };
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Agoraトークン生成に失敗しました: ${(error as Error).message}` });
       }
     }),
 });
