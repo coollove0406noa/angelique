@@ -1,75 +1,60 @@
--- ============================================================
--- 0004_multi_account.sql
 -- マルチアカウント対応マイグレーション
--- 複数の管理者アカウント（鑑定士）とスーパー管理者を管理する
--- ============================================================
+-- 占い師アカウントテーブル、スーパー管理者テーブルを追加
+-- clients/sessionsにfortune_teller_idを追加
 
--- ── 1. admin_accounts テーブル新設 ────────────────────────────
--- 各鑑定士アカウントを管理するテーブル。
--- slug は URL スラグ（例: "noa" → /admin/noa でアクセス）。
--- role: 'super_admin' = 全体管理者, 'admin' = 一般鑑定士
-CREATE TABLE `admin_accounts` (
-	`id` int AUTO_INCREMENT NOT NULL,
-	`slug` varchar(64) NOT NULL,
-	`displayName` varchar(100) NOT NULL,
-	`passwordHash` varchar(255) NOT NULL,
-	`role` enum('super_admin','admin') NOT NULL DEFAULT 'admin',
-	`isActive` tinyint(1) NOT NULL DEFAULT 1,
-	`createdAt` timestamp NOT NULL DEFAULT (now()),
-	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT `admin_accounts_id` PRIMARY KEY(`id`),
-	CONSTRAINT `admin_accounts_slug_unique` UNIQUE(`slug`)
+-- 1. fortune_tellers テーブル作成
+CREATE TABLE IF NOT EXISTS `fortune_tellers` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `slug` VARCHAR(50) NOT NULL UNIQUE,
+  `brandName` VARCHAR(100) NOT NULL,
+  `passwordHash` VARCHAR(255) NOT NULL,
+  `sessionToken` VARCHAR(64),
+  `themeColor` VARCHAR(50) NOT NULL DEFAULT 'dusty-pink',
+  `isActive` TINYINT(1) NOT NULL DEFAULT 1,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT NOW(),
+  `updatedAt` TIMESTAMP NOT NULL DEFAULT NOW() ON UPDATE NOW()
 );
---> statement-breakpoint
 
--- ── 2. clients テーブルに adminAccountId カラムを追加 ─────────
--- 各お客様がどの鑑定士アカウントに紐づくかを管理する。
--- NULL の場合は既存データ（移行前）を示す。
-ALTER TABLE `clients` ADD `adminAccountId` int;
---> statement-breakpoint
+-- 2. super_admin_auth テーブル作成
+CREATE TABLE IF NOT EXISTS `super_admin_auth` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `passwordHash` VARCHAR(255) NOT NULL,
+  `sessionToken` VARCHAR(64),
+  `createdAt` TIMESTAMP NOT NULL DEFAULT NOW(),
+  `updatedAt` TIMESTAMP NOT NULL DEFAULT NOW() ON UPDATE NOW()
+);
 
--- ── 3. sessions テーブルに adminAccountId カラムを追加 ────────
--- 各セッションがどの鑑定士アカウントで行われたかを記録する。
-ALTER TABLE `sessions` ADD `adminAccountId` int;
---> statement-breakpoint
+-- 3. clients に fortune_teller_id カラム追加
+ALTER TABLE `clients` ADD COLUMN IF NOT EXISTS `fortuneTellerId` INT NOT NULL DEFAULT 1;
 
--- ── 4. 既存の admin_auth データを admin_accounts へ移行 ───────
--- admin_auth テーブルに既存パスワードハッシュがある場合、
--- slug='noa', displayName='のあ', role='admin' として移行する。
-INSERT INTO `admin_accounts` (`slug`, `displayName`, `passwordHash`, `role`, `isActive`)
-SELECT
-  'noa'          AS `slug`,
-  'のあ'          AS `displayName`,
-  `passwordHash` AS `passwordHash`,
-  'admin'        AS `role`,
-  1              AS `isActive`
+-- 4. sessions に fortune_teller_id カラム追加
+ALTER TABLE `sessions` ADD COLUMN IF NOT EXISTS `fortuneTellerId` INT NOT NULL DEFAULT 1;
+
+-- 5. sessions に adminNotes カラム追加
+ALTER TABLE `sessions` ADD COLUMN IF NOT EXISTS `adminNotes` TEXT;
+
+-- 6. のあさんのアカウントをfortune_tellersに移行
+-- admin_authからパスワードハッシュをコピーして最初のfortune_tellerとして登録
+INSERT INTO `fortune_tellers` (`id`, `slug`, `brandName`, `passwordHash`, `themeColor`, `isActive`)
+SELECT 1, 'noa', '華耀望愛', `passwordHash`, 'dusty-pink', 1
 FROM `admin_auth`
-LIMIT 1;
---> statement-breakpoint
+LIMIT 1
+ON DUPLICATE KEY UPDATE `slug` = `slug`;
 
--- ── 5. スーパー管理者アカウントを追加 ────────────────────────
--- 初期パスワード: angelique2024
--- bcrypt(cost=12): $2b$12$fRDvq3AIdsa8QxFXRHPYNuLZeiPmYQnRAXuXB27jm57Gh1sFE.ldi
--- ※ 本番運用前に必ずパスワードを変更してください。
-INSERT INTO `admin_accounts` (`slug`, `displayName`, `passwordHash`, `role`, `isActive`)
-VALUES (
-  'super',
-  'スーパー管理者',
-  '$2b$12$fRDvq3AIdsa8QxFXRHPYNuLZeiPmYQnRAXuXB27jm57Gh1sFE.ldi',
-  'super_admin',
-  1
-);
---> statement-breakpoint
+-- 7. app_settingsのキーをfortune_teller_idプレフィックス付きに移行
+-- "admin_session_token" は fortune_tellers.sessionToken に移行済みのため削除
+-- STORES URLはft_1_プレフィックス付きにリネーム
+UPDATE `app_settings`
+SET `key` = CONCAT('ft_1_', `key`)
+WHERE `key` IN (
+  'stores_url_chat_10min',
+  'stores_url_chat_30min',
+  'stores_url_voice_10min',
+  'stores_url_voice_30min',
+  'stores_url_10min',
+  'stores_url_30min'
+)
+AND `key` NOT LIKE 'ft_%';
 
--- ── 6. admin_account_sessions テーブル新設 ────────────────────
--- 各管理者アカウントのセッショントークンを個別管理する。
--- （従来の app_settings.admin_session_token をアカウント別に分離）
-CREATE TABLE `admin_account_sessions` (
-	`id` int AUTO_INCREMENT NOT NULL,
-	`adminAccountId` int NOT NULL,
-	`sessionToken` varchar(64) NOT NULL,
-	`expiresAt` timestamp NOT NULL,
-	`createdAt` timestamp NOT NULL DEFAULT (now()),
-	CONSTRAINT `admin_account_sessions_id` PRIMARY KEY(`id`),
-	CONSTRAINT `admin_account_sessions_token_unique` UNIQUE(`sessionToken`)
-);
+-- admin_session_tokenキーを削除（fortune_tellers.sessionTokenに移行）
+DELETE FROM `app_settings` WHERE `key` = 'admin_session_token';

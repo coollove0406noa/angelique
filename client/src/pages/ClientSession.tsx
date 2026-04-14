@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import LinkifiedText from "@/components/LinkifiedText";
 import VoiceCall from "@/components/VoiceCall";
 import { WaitingRoom } from "@/components/WaitingRoom";
+import { BrandProvider } from "@/contexts/BrandContext";
 
 type Message = {
   id: number;
@@ -100,7 +101,14 @@ export default function ClientSession() {
     { sessionId: session?.id ?? 0 },
     { enabled: !!session?.id }
   );
-  const { data: storeSettings } = trpc.settings.list.useQuery();
+  const { data: storeSettings } = trpc.settings.list.useQuery(
+    { fortuneTellerId: sessionData?.fortuneTellerId ?? 0 },
+    { enabled: !!sessionData?.fortuneTellerId }
+  );
+  const { data: fortuneTellerInfo } = trpc.fortuneTeller.getPublicInfo.useQuery(
+    { id: sessionData?.fortuneTellerId ?? 0 },
+    { enabled: !!sessionData?.fortuneTellerId }
+  );
 
   // Initialize session
   useEffect(() => {
@@ -320,11 +328,15 @@ export default function ClientSession() {
   const handleExtensionRequest = useCallback((minutes: number) => {
     if (!session) return;
     const settings = storeSettings ?? [];
-    const urlMap: Record<number, string> = {
-      10: settings.find((s) => s.key === "stores_url_10min")?.value ?? "",
-      30: settings.find((s) => s.key === "stores_url_30min")?.value ?? "",
+    const sType = session.sessionType ?? "chat";
+    const keyMap: Record<number, string> = {
+      10: sType === "voice" ? "stores_url_voice_10min" : "stores_url_chat_10min",
+      30: sType === "voice" ? "stores_url_voice_30min" : "stores_url_chat_30min",
     };
-    const url = urlMap[minutes];
+    // Fallback to old key format for backward compat
+    const fallbackMap: Record<number, string> = { 10: "stores_url_10min", 30: "stores_url_30min" };
+    const url = settings.find((s) => s.key === keyMap[minutes])?.value ||
+      settings.find((s) => s.key === fallbackMap[minutes])?.value || "";
     if (url) {
       window.open(url, "_blank", "noopener,noreferrer");
     } else {
@@ -542,15 +554,19 @@ export default function ClientSession() {
   }
 
   return (
+    <BrandProvider
+      brandName={fortuneTellerInfo?.brandName ?? "angelique"}
+      themeColor={fortuneTellerInfo?.themeColor ?? "dusty-pink"}
+    >
     <div
       className="min-h-screen flex flex-col"
-      style={{ background: "#f9f5f4", overflowX: "hidden", maxWidth: "100vw" }}
+      style={{ background: "var(--brand-main)", overflowX: "hidden", maxWidth: "100vw" }}
     >
       {/* Header - 固定 */}
       <header
         style={{
           background: "#ffffff",
-          borderBottom: "1px solid #d4bfbb",
+          borderBottom: "1px solid var(--brand-border)",
           boxShadow: "0 2px 12px rgba(107,91,88,0.06)",
           padding: "12px 16px",
           display: "flex",
@@ -567,11 +583,11 @@ export default function ClientSession() {
           style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: "22px",
-            color: "#c9a8a3",
+            color: "var(--brand-accent)",
             letterSpacing: "2px",
           }}
         >
-          ✦ angelique
+          ✦ {fortuneTellerInfo?.brandName ?? "angelique"}
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
@@ -1224,5 +1240,6 @@ export default function ClientSession() {
         </div>
       </div>
     </div>
+    </BrandProvider>
   );
 }

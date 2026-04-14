@@ -1,15 +1,24 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext } from "react";
 import { trpc } from "@/lib/trpc";
+
+export interface FortuneTellerInfo {
+  fortuneTellerId: number;
+  slug: string;
+  brandName: string;
+  themeColor: string;
+}
 
 interface AdminAuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  fortuneTeller: FortuneTellerInfo | null;
   refetch: () => void;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType>({
   isAuthenticated: false,
   isLoading: true,
+  fortuneTeller: null,
   refetch: () => {},
 });
 
@@ -19,11 +28,22 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     refetchOnWindowFocus: false,
   });
 
+  const fortuneTeller: FortuneTellerInfo | null =
+    data?.authenticated && data.fortuneTellerId
+      ? {
+          fortuneTellerId: data.fortuneTellerId,
+          slug: data.slug!,
+          brandName: data.brandName!,
+          themeColor: data.themeColor!,
+        }
+      : null;
+
   return (
     <AdminAuthContext.Provider
       value={{
         isAuthenticated: data?.authenticated ?? false,
         isLoading,
+        fortuneTeller,
         refetch,
       }}
     >

@@ -48,10 +48,10 @@ type Session = {
 const ALERT_THRESHOLD = 5 * 60; // 5 minutes in seconds
 
 export default function AdminSession() {
-  const { id } = useParams<{ id: string }>();
+  const { slug, id } = useParams<{ slug: string; id: string }>();
   const sessionId = Number(id);
   const [, navigate] = useLocation();
-  const { isAuthenticated, isLoading, refetch: refetchAuth } = useAdminAuth();
+  const { isAuthenticated, isLoading, fortuneTeller, refetch: refetchAuth } = useAdminAuth();
 
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -94,7 +94,10 @@ export default function AdminSession() {
     { sessionId },
     { enabled: !!sessionId && isAuthenticated }
   );
-  const { data: storeSettings } = trpc.settings.list.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: storeSettings } = trpc.settings.list.useQuery(
+    { fortuneTellerId: fortuneTeller?.fortuneTellerId ?? 0 },
+    { enabled: isAuthenticated && !!fortuneTeller }
+  );
 
   const updateSessionMutation = trpc.sessions.update.useMutation();
   const carryoverMutation = trpc.carryover.save.useMutation({
@@ -486,7 +489,7 @@ export default function AdminSession() {
       // お客様画面に終了を通知
       socketRef.current?.emit("carryover_saved", { sessionId, minutes: 0 });
       toast.success("セッションを完了しました");
-      navigate("/admin");
+      navigate(`/admin/${slug}`);
     }
   }, [sessionId, navigate]);
 
@@ -507,14 +510,14 @@ export default function AdminSession() {
     );
   }
 
-  if (!isAuthenticated) return <AdminLogin onSuccess={refetchAuth} />;
+  if (!isAuthenticated) return <AdminLogin slug={slug} onSuccess={refetchAuth} />;
 
   return (
     <div
       className={`min-h-screen flex flex-col ${screenFlash ? "screen-flash-anim" : ""}`}
       style={{ background: "#f9f5f4" }}
     >
-      <AngeliqueHeader isAdmin onLogout={() => logoutMutation.mutate()} />
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
 
       {/* ── 上部固定バー：タイマー + 終了ボタン ─────────────────────────────────── */}
       <div

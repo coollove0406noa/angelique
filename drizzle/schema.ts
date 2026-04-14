@@ -1,4 +1,5 @@
 import {
+  boolean,
   int,
   mysqlEnum,
   mysqlTable,
@@ -27,7 +28,7 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 /**
- * Admin password table - stores hashed admin password
+ * Admin password table - stores hashed admin password (legacy, kept for reference)
  */
 export const adminAuth = mysqlTable("admin_auth", {
   id: int("id").autoincrement().primaryKey(),
@@ -37,10 +38,42 @@ export const adminAuth = mysqlTable("admin_auth", {
 });
 
 /**
+ * Fortune tellers (占い師) accounts table
+ */
+export const fortuneTellers = mysqlTable("fortune_tellers", {
+  id: int("id").autoincrement().primaryKey(),
+  slug: varchar("slug", { length: 50 }).notNull().unique(),
+  brandName: varchar("brandName", { length: 100 }).notNull(),
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  sessionToken: varchar("sessionToken", { length: 64 }),
+  themeColor: varchar("themeColor", { length: 50 }).notNull().default("dusty-pink"),
+  isActive: boolean("isActive").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FortuneTeller = typeof fortuneTellers.$inferSelect;
+export type InsertFortuneTeller = typeof fortuneTellers.$inferInsert;
+
+/**
+ * Super admin auth table
+ */
+export const superAdminAuth = mysqlTable("super_admin_auth", {
+  id: int("id").autoincrement().primaryKey(),
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  sessionToken: varchar("sessionToken", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SuperAdminAuth = typeof superAdminAuth.$inferSelect;
+
+/**
  * Clients (customers) table
  */
 export const clients = mysqlTable("clients", {
   id: int("id").autoincrement().primaryKey(),
+  fortuneTellerId: int("fortuneTellerId").notNull().default(1),
   name: varchar("name", { length: 100 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),
   sessionMinutes: int("sessionMinutes").notNull().default(60),
@@ -58,6 +91,7 @@ export type InsertClient = typeof clients.$inferInsert;
  */
 export const sessions = mysqlTable("sessions", {
   id: int("id").autoincrement().primaryKey(),
+  fortuneTellerId: int("fortuneTellerId").notNull().default(1),
   clientId: int("clientId").notNull(),
   clientToken: varchar("clientToken", { length: 128 }).notNull().unique(),
   scheduledAt: timestamp("scheduledAt").notNull(),
@@ -79,6 +113,7 @@ export const sessions = mysqlTable("sessions", {
   endedAt: timestamp("endedAt"),
   remainingSeconds: int("remainingSeconds").default(0),
   timerStartedAt: bigint("timerStartedAt", { mode: "number" }),
+  adminNotes: text("adminNotes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -120,6 +155,8 @@ export type InsertCarryoverRecord = typeof carryoverRecords.$inferInsert;
 
 /**
  * App settings table (STORES URLs, etc.)
+ * Keys are prefixed by fortune teller ID: "ft_{id}_{key}"
+ * Global settings (super admin) use no prefix.
  */
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),

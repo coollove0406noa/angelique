@@ -4,9 +4,10 @@ import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
 import AdminLogin from "./AdminLogin";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
+import { useBrand } from "@/contexts/BrandContext";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { io, Socket } from "socket.io-client";
 
@@ -57,7 +58,9 @@ function getRemainingDisplay(session: Session): string {
 }
 
 export default function AdminDashboard() {
-  const { isAuthenticated, isLoading, refetch: refetchAuth } = useAdminAuth();
+  const { slug } = useParams<{ slug: string }>();
+  const { isAuthenticated, isLoading, fortuneTeller, refetch: refetchAuth } = useAdminAuth();
+  const { colors } = useBrand();
   const [, navigate] = useLocation();
   const socketRef = useRef<Socket | null>(null);
 
@@ -68,14 +71,12 @@ export default function AdminDashboard() {
   }, []);
 
   const { data: sessions = [], refetch: refetchSessions } = trpc.sessions.list.useQuery(
-    undefined,
-    { refetchInterval: 10000 }
+    { fortuneTellerId: fortuneTeller?.fortuneTellerId ?? 0 },
+    {
+      enabled: isAuthenticated && !!fortuneTeller,
+      refetchInterval: 10000,
+    }
   );
-
-  // 「入室」ボタン：セッションルームに入る（DBはまだscheduledのまま）
-  const handleEnterRoom = (sessionId: number) => {
-    navigate(`/admin/session/${sessionId}`);
-  };
 
   const logoutMutation = trpc.admin.logout.useMutation({
     onSuccess: () => refetchAuth(),
@@ -83,14 +84,33 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#f9f5f4" }}>
-        <div style={{ color: "#9e8480" }}>読み込み中...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: colors.main }}>
+        <div style={{ color: colors.subText }}>読み込み中...</div>
+      </div>
+    );
+  }
+
+  // Wrong fortune teller logged in
+  if (isAuthenticated && fortuneTeller && fortuneTeller.slug !== slug) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: colors.main }}>
+        <div className="angelique-card p-8 text-center">
+          <p style={{ color: colors.text, marginBottom: "16px" }}>
+            別のアカウントでログイン中です。
+          </p>
+          <button
+            className="angelique-btn"
+            onClick={() => logoutMutation.mutate()}
+          >
+            ログアウトして切り替え
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    return <AdminLogin onSuccess={refetchAuth} />;
+    return <AdminLogin slug={slug} onSuccess={refetchAuth} />;
   }
 
   const activeSessions = sessions.filter((s) => ["active", "paused"].includes(s.status));
@@ -98,23 +118,22 @@ export default function AdminDashboard() {
   const pastSessions = sessions.filter((s) => ["completed", "cancelled"].includes(s.status));
 
   return (
-    <div className="min-h-screen" style={{ background: "#f9f5f4" }}>
-      <AngeliqueHeader isAdmin onLogout={() => logoutMutation.mutate()} />
+    <div className="min-h-screen" style={{ background: colors.main }}>
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1
             style={{
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: "32px",
-              color: "#6b5b58",
+              color: colors.text,
               fontWeight: 400,
             }}
           >
             ✦ セッション管理
           </h1>
-          <p style={{ fontSize: "13px", color: "#9e8480", marginTop: "4px" }}>
+          <p style={{ fontSize: "13px", color: colors.subText, marginTop: "4px" }}>
             {format(new Date(), "yyyy年M月d日 (E)", { locale: ja })}
           </p>
         </div>
@@ -123,8 +142,8 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
             { label: "進行中", count: activeSessions.length, color: "#388e3c" },
-            { label: "予約済", count: scheduledSessions.length, color: "#c9a8a3" },
-            { label: "完了", count: pastSessions.length, color: "#9e8480" },
+            { label: "予約済", count: scheduledSessions.length, color: colors.accent },
+            { label: "完了", count: pastSessions.length, color: colors.subText },
           ].map((stat) => (
             <div key={stat.label} className="angelique-card p-5 text-center">
               <div
@@ -138,7 +157,7 @@ export default function AdminDashboard() {
               >
                 {stat.count}
               </div>
-              <div style={{ fontSize: "12px", color: "#9e8480", marginTop: "4px" }}>
+              <div style={{ fontSize: "12px", color: colors.subText, marginTop: "4px" }}>
                 {stat.label}
               </div>
             </div>
@@ -148,7 +167,7 @@ export default function AdminDashboard() {
         {/* Active Sessions */}
         {activeSessions.length > 0 && (
           <div className="mb-6">
-            <h2 style={{ fontSize: "15px", color: "#6b5b58", fontWeight: 500, marginBottom: "12px" }}>
+            <h2 style={{ fontSize: "15px", color: colors.text, fontWeight: 500, marginBottom: "12px" }}>
               🔴 進行中のセッション
             </h2>
             <div className="grid gap-3">
@@ -156,8 +175,9 @@ export default function AdminDashboard() {
                 <SessionCard
                   key={s.id}
                   session={s as unknown as Session}
-                  onOpen={() => navigate(`/admin/session/${s.id}`)}
-                  onEnterRoom={() => handleEnterRoom(s.id)}
+                  slug={slug}
+                  onOpen={() => navigate(`/admin/${slug}/session/${s.id}`)}
+                  onEnterRoom={() => navigate(`/admin/${slug}/session/${s.id}`)}
                 />
               ))}
             </div>
@@ -167,7 +187,7 @@ export default function AdminDashboard() {
         {/* Scheduled Sessions */}
         {scheduledSessions.length > 0 && (
           <div className="mb-6">
-            <h2 style={{ fontSize: "15px", color: "#6b5b58", fontWeight: 500, marginBottom: "12px" }}>
+            <h2 style={{ fontSize: "15px", color: colors.text, fontWeight: 500, marginBottom: "12px" }}>
               📅 予約済みセッション
             </h2>
             <div className="grid gap-3">
@@ -175,8 +195,9 @@ export default function AdminDashboard() {
                 <SessionCard
                   key={s.id}
                   session={s as unknown as Session}
-                  onOpen={() => navigate(`/admin/session/${s.id}`)}
-                  onEnterRoom={() => handleEnterRoom(s.id)}
+                  slug={slug}
+                  onOpen={() => navigate(`/admin/${slug}/session/${s.id}`)}
+                  onEnterRoom={() => navigate(`/admin/${slug}/session/${s.id}`)}
                 />
               ))}
             </div>
@@ -186,15 +207,15 @@ export default function AdminDashboard() {
         {/* Past Sessions */}
         {pastSessions.length > 0 && (
           <div>
-            <h2 style={{ fontSize: "15px", color: "#6b5b58", fontWeight: 500, marginBottom: "12px" }}>
+            <h2 style={{ fontSize: "15px", color: colors.text, fontWeight: 500, marginBottom: "12px" }}>
               過去のセッション
             </h2>
             <div className="angelique-card overflow-hidden">
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "#f9f5f4", borderBottom: "1px solid #d4bfbb" }}>
+                  <tr style={{ background: colors.main, borderBottom: `1px solid ${colors.border}` }}>
                     {["お客様", "日時", "時間", "ステータス"].map((h) => (
-                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: "12px", color: "#9e8480" }}>
+                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: "12px", color: colors.subText }}>
                         {h}
                       </th>
                     ))}
@@ -202,10 +223,18 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {pastSessions.slice(0, 10).map((s, i) => (
-                    <tr key={s.id} style={{ borderBottom: i < Math.min(pastSessions.length, 10) - 1 ? "1px solid #f3e7e5" : "none" }}>
-                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "#6b5b58" }}>{s.clientName}</td>
-                      <td style={{ padding: "12px 16px", fontSize: "13px", color: "#9e8480" }}>{formatDate(s.scheduledAt)}</td>
-                      <td style={{ padding: "12px 16px", fontSize: "13px", color: "#6b5b58" }}>{s.durationMinutes}分</td>
+                    <tr
+                      key={s.id}
+                      style={{
+                        borderBottom: i < Math.min(pastSessions.length, 10) - 1 ? `1px solid ${colors.main}` : "none",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => navigate(`/admin/${slug}/session/${s.id}`)}
+                      className="hover:bg-[var(--brand-main)]"
+                    >
+                      <td style={{ padding: "12px 16px", fontSize: "14px", color: colors.text }}>{s.clientName}</td>
+                      <td style={{ padding: "12px 16px", fontSize: "13px", color: colors.subText }}>{formatDate(s.scheduledAt)}</td>
+                      <td style={{ padding: "12px 16px", fontSize: "13px", color: colors.text }}>{s.durationMinutes}分</td>
                       <td style={{ padding: "12px 16px" }}><StatusBadge status={s.status} /></td>
                     </tr>
                   ))}
@@ -218,13 +247,13 @@ export default function AdminDashboard() {
         {sessions.length === 0 && (
           <div className="angelique-card p-16 text-center">
             <div style={{ fontSize: "48px", marginBottom: "12px" }}>✦</div>
-            <p style={{ color: "#9e8480", fontSize: "15px" }}>セッションがありません</p>
-            <p style={{ color: "#d4bfbb", fontSize: "13px", marginTop: "8px" }}>
+            <p style={{ color: colors.subText, fontSize: "15px" }}>セッションがありません</p>
+            <p style={{ color: colors.border, fontSize: "13px", marginTop: "8px" }}>
               予約管理画面からセッションを作成してください
             </p>
             <button
               className="angelique-btn mt-6"
-              onClick={() => navigate("/admin/bookings")}
+              onClick={() => navigate(`/admin/${slug}/bookings`)}
             >
               予約管理へ
             </button>
@@ -259,6 +288,7 @@ function downloadQRAsPng(svgEl: SVGSVGElement | null, clientName: string | null)
 
 function QRModal({ url, clientName, onClose }: { url: string; clientName: string | null; onClose: () => void }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const { colors } = useBrand();
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -266,64 +296,26 @@ function QRModal({ url, clientName, onClose }: { url: string; clientName: string
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="angelique-card p-8 w-full max-w-xs mx-4 text-center">
-        <div
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: "20px",
-            color: "#6b5b58",
-            marginBottom: "4px",
-          }}
-        >
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "20px", color: colors.text, marginBottom: "4px" }}>
           QRコード
         </div>
-        <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "20px" }}>
+        <p style={{ fontSize: "12px", color: colors.subText, marginBottom: "20px" }}>
           {clientName} 様のセッションURL
         </p>
-        <div
-          style={{
-            display: "inline-flex",
-            padding: "12px",
-            background: "#fff",
-            borderRadius: "12px",
-            border: "1px solid #d4bfbb",
-            marginBottom: "16px",
-          }}
-        >
+        <div style={{ display: "inline-flex", padding: "12px", background: "#fff", borderRadius: "12px", border: `1px solid ${colors.border}`, marginBottom: "16px" }}>
           <QRCodeSVG value={url} size={180} ref={svgRef} />
         </div>
-        <p
-          style={{
-            fontSize: "10px",
-            color: "#9e8480",
-            wordBreak: "break-all",
-            marginBottom: "16px",
-            lineHeight: 1.5,
-          }}
-        >
+        <p style={{ fontSize: "10px", color: colors.subText, wordBreak: "break-all", marginBottom: "16px", lineHeight: 1.5 }}>
           {url}
         </p>
         <div className="flex gap-2 justify-center flex-wrap">
-          <button
-            className="angelique-btn-outline"
-            style={{ padding: "6px 16px", fontSize: "12px" }}
-            onClick={() => {
-              navigator.clipboard.writeText(url);
-            }}
-          >
+          <button className="angelique-btn-outline" style={{ padding: "6px 16px", fontSize: "12px" }} onClick={() => { navigator.clipboard.writeText(url); }}>
             URLをコピー
           </button>
-          <button
-            className="angelique-btn-outline"
-            style={{ padding: "6px 16px", fontSize: "12px" }}
-            onClick={() => downloadQRAsPng(svgRef.current, clientName)}
-          >
+          <button className="angelique-btn-outline" style={{ padding: "6px 16px", fontSize: "12px" }} onClick={() => downloadQRAsPng(svgRef.current, clientName)}>
             PNG保存
           </button>
-          <button
-            className="angelique-btn-outline"
-            style={{ padding: "6px 16px", fontSize: "12px" }}
-            onClick={onClose}
-          >
+          <button className="angelique-btn-outline" style={{ padding: "6px 16px", fontSize: "12px" }} onClick={onClose}>
             閉じる
           </button>
         </div>
@@ -334,28 +326,29 @@ function QRModal({ url, clientName, onClose }: { url: string; clientName: string
 
 function SessionCard({
   session,
+  slug,
   onOpen,
   onEnterRoom,
 }: {
   session: Session;
+  slug: string;
   onOpen: () => void;
   onEnterRoom: () => void;
 }) {
   const isActive = session.status === "active" || session.status === "paused";
   const remaining = getRemainingDisplay(session);
   const [showQR, setShowQR] = useState(false);
+  const { colors } = useBrand();
   const clientUrl = `${window.location.origin}/session/${session.clientToken}`;
 
   return (
     <div
       className="angelique-card p-5 flex items-center justify-between gap-4"
-      style={{
-        borderLeft: isActive ? "3px solid #c9a8a3" : "3px solid transparent",
-      }}
+      style={{ borderLeft: isActive ? `3px solid ${colors.accent}` : "3px solid transparent" }}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 mb-1 flex-wrap">
-          <span style={{ fontSize: "15px", fontWeight: 500, color: "#6b5b58" }}>
+          <span style={{ fontSize: "15px", fontWeight: 500, color: colors.text }}>
             {session.clientName}
           </span>
           <StatusBadge status={session.status} />
@@ -364,16 +357,16 @@ function SessionCard({
               fontSize: "11px",
               padding: "2px 8px",
               borderRadius: "8px",
-              background: session.sessionType === "voice" ? "#e8f5e9" : "#f3e7e5",
-              color: session.sessionType === "voice" ? "#2e7d32" : "#9e8480",
-              border: session.sessionType === "voice" ? "1px solid #a5d6a7" : "1px solid #d4bfbb",
+              background: session.sessionType === "voice" ? "#e8f5e9" : colors.main,
+              color: session.sessionType === "voice" ? "#2e7d32" : colors.subText,
+              border: session.sessionType === "voice" ? "1px solid #a5d6a7" : `1px solid ${colors.border}`,
               fontWeight: 500,
             }}
           >
             {session.sessionType === "voice" ? "🎙 音声" : "💬 チャット"}
           </span>
         </div>
-        <div style={{ fontSize: "13px", color: "#9e8480" }}>
+        <div style={{ fontSize: "13px", color: colors.subText }}>
           {format(new Date(session.scheduledAt), "M/d (E) HH:mm", { locale: ja })} ·{" "}
           {session.durationMinutes}分
           {session.carryoverMinutes > 0 && ` (+${session.carryoverMinutes}分繰越)`}
@@ -385,7 +378,7 @@ function SessionCard({
           style={{
             fontFamily: "'Cormorant Garamond', serif",
             fontSize: "24px",
-            color: "#6b5b58",
+            color: colors.text,
             minWidth: "80px",
             textAlign: "center",
           }}
@@ -395,15 +388,10 @@ function SessionCard({
       )}
 
       {showQR && (
-        <QRModal
-          url={clientUrl}
-          clientName={session.clientName}
-          onClose={() => setShowQR(false)}
-        />
+        <QRModal url={clientUrl} clientName={session.clientName} onClose={() => setShowQR(false)} />
       )}
 
       <div className="flex gap-2">
-        {/* QRコードボタン（全ステータスで表示） */}
         <button
           className="angelique-btn-outline"
           onClick={() => setShowQR(true)}
@@ -412,19 +400,10 @@ function SessionCard({
         >
           QR
         </button>
-        {session.status === "scheduled" && (
+        {(session.status === "scheduled" || isActive) && (
           <button
             className="angelique-btn"
             onClick={onEnterRoom}
-            style={{ padding: "8px 20px", fontSize: "13px" }}
-          >
-            入室
-          </button>
-        )}
-        {isActive && (
-          <button
-            className="angelique-btn"
-            onClick={onOpen}
             style={{ padding: "8px 20px", fontSize: "13px" }}
           >
             入室

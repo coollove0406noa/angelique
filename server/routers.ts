@@ -5,24 +5,33 @@ import { z } from "zod";
 import {
   createCarryover,
   createClient,
+  createFortuneTeller,
   createSession,
   deleteClient,
   deleteSession,
-  getAdminPasswordHash,
   getAllClients,
+  getAllFortuneTellers,
   getAllSessions,
-  getAllSettings,
+  getAllSettingsForFortuneTeller,
+  getSettingForFortuneTeller,
   getCarryoverByClient,
   getClientById,
+  getFortuneTellerById,
+  getFortuneTellerBySlug,
+  getFortuneTellerByToken,
   getMessagesBySession,
   getPendingCarryover,
   getSessionById,
   getSessionByToken,
-  getSetting,
+  getSessionsByClientId,
+  getSuperAdminPasswordHash,
+  getSuperAdminSessionToken,
   markCarryoverApplied,
-  setAdminPasswordHash,
-  setSetting,
+  setSuperAdminPasswordHash,
+  setSuperAdminSessionToken,
+  setSettingForFortuneTeller,
   updateClient,
+  updateFortuneTeller,
   updateSession,
 } from "./db";
 import { sendSessionInviteEmail } from "./mailer";
@@ -30,36 +39,36 @@ import { storagePut } from "./storage";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
 
-// ── Admin session token (simple JWT-like approach using nanoid stored in cookie) ──
-// We use a simple approach: admin sets password, gets a signed token back
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+async function getAdminTokenFromCookie(cookieHeader: string): Promise<string | null> {
+  const match = cookieHeader.match(/admin_token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+async function getSuperAdminTokenFromCookie(cookieHeader: string): Promise<string | null> {
+  const match = cookieHeader.match(/super_admin_token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+// ── Admin Router (per fortune teller) ─────────────────────────────────────
 
 const adminRouter = router({
   login: publicProcedure
-    .input(z.object({ password: z.string() }))
+    .input(z.object({ slug: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const hash = await getAdminPasswordHash();
-      if (!hash) {
-        // First time setup: set password
-        const newHash = await bcrypt.hash(input.password, 12);
-        await setAdminPasswordHash(newHash);
-        const token = nanoid(32);
-        ctx.res.cookie("admin_token", token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 24 * 60 * 60 * 1000, // 24h
-          path: "/",
-        });
-        // Store token in DB settings
-        await setSetting("admin_session_token", token, "管理者セッショントークン");
-        return { success: true, firstSetup: true };
+      const ft = await getFortuneTellerBySlug(input.slug);
+      if (!ft || !ft.isActive) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "アカウントが見つかりません" });
       }
-      const valid = await bcrypt.compare(input.password, hash);
+
+      const valid = await bcrypt.compare(input.password, ft.passwordHash);
       if (!valid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "パスワードが違います" });
       }
+
       const token = nanoid(32);
       ctx.res.cookie("admin_token", token, {
         httpOnly: true,
@@ -68,43 +77,270 @@ const adminRouter = router({
         maxAge: 24 * 60 * 60 * 1000,
         path: "/",
       });
-      await setSetting("admin_session_token", token, "管理者セッショントークン");
-      return { success: true, firstSetup: false };
+      await updateFortuneTeller(ft.id, { sessionToken: token });
+
+      return {
+        success: true,
+        fortuneTellerId: ft.id,
+        slug: ft.slug,
+        brandName: ft.brandName,
+        themeColor: ft.themeColor,
+      };
     }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
+    const cookieHeader = ctx.req.headers.cookie || "";
+    const token = await getAdminTokenFromCookie(cookieHeader);
+    if (token) {
+      const ft = await getFortuneTellerByToken(token);
+      if (ft) {
+        await updateFortuneTeller(ft.id, { sessionToken: null });
+      }
+    }
     ctx.res.clearCookie("admin_token", { path: "/" });
     return { success: true };
   }),
 
   check: publicProcedure.query(async ({ ctx }) => {
     const cookieHeader = ctx.req.headers.cookie || "";
-    const match = cookieHeader.match(/admin_token=([^;]+)/);
-    const token = match ? match[1] : null;
+    const token = await getAdminTokenFromCookie(cookieHeader);
     if (!token) return { authenticated: false };
-    const stored = await getSetting("admin_session_token");
-    return { authenticated: stored === token };
+
+    const ft = await getFortuneTellerByToken(token);
+    if (!ft || !ft.isActive) return { authenticated: false };
+
+    return {
+      authenticated: true,
+      fortuneTellerId: ft.id,
+      slug: ft.slug,
+      brandName: ft.brandName,
+      themeColor: ft.themeColor,
+    };
   }),
 
   changePassword: publicProcedure
-    .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
-    .mutation(async ({ input }) => {
-      const hash = await getAdminPasswordHash();
-      if (!hash) throw new TRPCError({ code: "NOT_FOUND", message: "パスワード未設定" });
-      const valid = await bcrypt.compare(input.currentPassword, hash);
-      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "現在のパスワードが違います" });
+    .input(z.object({
+      slug: z.string(),
+      currentPassword: z.string(),
+      newPassword: z.string().min(6),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Verify currently logged in as this fortune teller
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getAdminTokenFromCookie(cookieHeader);
+      const ft = token ? await getFortuneTellerByToken(token) : null;
+      if (!ft || ft.slug !== input.slug) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
+      }
+      const valid = await bcrypt.compare(input.currentPassword, ft.passwordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "現在のパスワードが違います" });
+      }
       const newHash = await bcrypt.hash(input.newPassword, 12);
-      await setAdminPasswordHash(newHash);
+      await updateFortuneTeller(ft.id, { passwordHash: newHash });
       return { success: true };
+    }),
+
+  updateBrand: publicProcedure
+    .input(z.object({
+      slug: z.string(),
+      brandName: z.string().min(1).optional(),
+      themeColor: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getAdminTokenFromCookie(cookieHeader);
+      const ft = token ? await getFortuneTellerByToken(token) : null;
+      if (!ft || ft.slug !== input.slug) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
+      }
+      const updateData: Parameters<typeof updateFortuneTeller>[1] = {};
+      if (input.brandName !== undefined) updateData.brandName = input.brandName;
+      if (input.themeColor !== undefined) updateData.themeColor = input.themeColor;
+      await updateFortuneTeller(ft.id, updateData);
+      return { success: true };
+    }),
+});
+
+// ── Super Admin Router ─────────────────────────────────────────────────────
+
+const superAdminRouter = router({
+  login: publicProcedure
+    .input(z.object({ password: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const hash = await getSuperAdminPasswordHash();
+      if (!hash) {
+        // First-time setup
+        const newHash = await bcrypt.hash(input.password, 12);
+        await setSuperAdminPasswordHash(newHash);
+        const token = nanoid(32);
+        await setSuperAdminSessionToken(token);
+        ctx.res.cookie("super_admin_token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: 24 * 60 * 60 * 1000,
+          path: "/",
+        });
+        return { success: true, firstSetup: true };
+      }
+
+      const valid = await bcrypt.compare(input.password, hash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "パスワードが違います" });
+      }
+      const token = nanoid(32);
+      await setSuperAdminSessionToken(token);
+      ctx.res.cookie("super_admin_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 24 * 60 * 60 * 1000,
+        path: "/",
+      });
+      return { success: true, firstSetup: false };
+    }),
+
+  logout: publicProcedure.mutation(async ({ ctx }) => {
+    ctx.res.clearCookie("super_admin_token", { path: "/" });
+    return { success: true };
+  }),
+
+  check: publicProcedure.query(async ({ ctx }) => {
+    const cookieHeader = ctx.req.headers.cookie || "";
+    const token = await getSuperAdminTokenFromCookie(cookieHeader);
+    if (!token) return { authenticated: false };
+    const stored = await getSuperAdminSessionToken();
+    return { authenticated: stored === token };
+  }),
+
+  listFortuneTellers: publicProcedure.query(async ({ ctx }) => {
+    const cookieHeader = ctx.req.headers.cookie || "";
+    const token = await getSuperAdminTokenFromCookie(cookieHeader);
+    const stored = await getSuperAdminSessionToken();
+    if (!token || stored !== token) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+    const all = await getAllFortuneTellers();
+    // Count clients and sessions per fortune teller
+    return all.map((ft) => ({
+      id: ft.id,
+      slug: ft.slug,
+      brandName: ft.brandName,
+      themeColor: ft.themeColor,
+      isActive: ft.isActive,
+      createdAt: ft.createdAt,
+    }));
+  }),
+
+  createFortuneTeller: publicProcedure
+    .input(
+      z.object({
+        slug: z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, "英小文字・数字・ハイフンのみ使用可能"),
+        brandName: z.string().min(1).max(100),
+        password: z.string().min(6),
+        themeColor: z.string().default("dusty-pink"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getSuperAdminTokenFromCookie(cookieHeader);
+      const stored = await getSuperAdminSessionToken();
+      if (!token || stored !== token) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      // Check slug uniqueness
+      const existing = await getFortuneTellerBySlug(input.slug);
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "このスラッグはすでに使用されています" });
+      }
+
+      const passwordHash = await bcrypt.hash(input.password, 12);
+      const id = await createFortuneTeller({
+        slug: input.slug,
+        brandName: input.brandName,
+        passwordHash,
+        themeColor: input.themeColor,
+      });
+      return { id, slug: input.slug };
+    }),
+
+  updateFortuneTeller: publicProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        brandName: z.string().min(1).max(100).optional(),
+        themeColor: z.string().optional(),
+        isActive: z.boolean().optional(),
+        newPassword: z.string().min(6).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getSuperAdminTokenFromCookie(cookieHeader);
+      const stored = await getSuperAdminSessionToken();
+      if (!token || stored !== token) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const updateData: Parameters<typeof updateFortuneTeller>[1] = {};
+      if (input.brandName !== undefined) updateData.brandName = input.brandName;
+      if (input.themeColor !== undefined) updateData.themeColor = input.themeColor;
+      if (input.isActive !== undefined) updateData.isActive = input.isActive;
+      if (input.newPassword) {
+        updateData.passwordHash = await bcrypt.hash(input.newPassword, 12);
+      }
+      await updateFortuneTeller(input.id, updateData);
+      return { success: true };
+    }),
+
+  getFortuneTellerStats: publicProcedure
+    .input(z.object({ fortuneTellerId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getSuperAdminTokenFromCookie(cookieHeader);
+      const stored = await getSuperAdminSessionToken();
+      if (!token || stored !== token) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const [clientList, sessionList] = await Promise.all([
+        getAllClients(input.fortuneTellerId),
+        getAllSessions(input.fortuneTellerId),
+      ]);
+      return {
+        clientCount: clientList.length,
+        sessionCount: sessionList.length,
+        completedSessions: sessionList.filter((s) => s.status === "completed").length,
+      };
+    }),
+});
+
+// ── Fortune Teller Public Info (for client session theming) ───────────────
+
+const fortuneTellerRouter = router({
+  getPublicInfo: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const ft = await getFortuneTellerById(input.id);
+      if (!ft) throw new TRPCError({ code: "NOT_FOUND" });
+      return {
+        id: ft.id,
+        brandName: ft.brandName,
+        themeColor: ft.themeColor,
+      };
     }),
 });
 
 // ── Clients ────────────────────────────────────────────────────────────────
 
 const clientsRouter = router({
-  list: publicProcedure.query(async () => {
-    return getAllClients();
-  }),
+  list: publicProcedure
+    .input(z.object({ fortuneTellerId: z.number() }))
+    .query(async ({ input }) => {
+      return getAllClients(input.fortuneTellerId);
+    }),
 
   get: publicProcedure
     .input(z.object({ id: z.number() }))
@@ -117,6 +353,7 @@ const clientsRouter = router({
   create: publicProcedure
     .input(
       z.object({
+        fortuneTellerId: z.number(),
         name: z.string().min(1),
         email: z.string().email(),
         sessionMinutes: z.number().min(5).max(480),
@@ -157,9 +394,17 @@ const clientsRouter = router({
 // ── Sessions ───────────────────────────────────────────────────────────────
 
 const sessionsRouter = router({
-  list: publicProcedure.query(async () => {
-    return getAllSessions();
-  }),
+  list: publicProcedure
+    .input(z.object({ fortuneTellerId: z.number() }))
+    .query(async ({ input }) => {
+      return getAllSessions(input.fortuneTellerId);
+    }),
+
+  listByClient: publicProcedure
+    .input(z.object({ clientId: z.number() }))
+    .query(async ({ input }) => {
+      return getSessionsByClientId(input.clientId);
+    }),
 
   get: publicProcedure
     .input(z.object({ id: z.number() }))
@@ -180,8 +425,9 @@ const sessionsRouter = router({
   create: publicProcedure
     .input(
       z.object({
+        fortuneTellerId: z.number(),
         clientId: z.number(),
-        scheduledAt: z.string(), // ISO string
+        scheduledAt: z.string(),
         durationMinutes: z.number().min(5).max(480),
         carryoverMinutes: z.number().min(0).default(0),
         sendEmail: z.boolean().default(true),
@@ -192,6 +438,7 @@ const sessionsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const token = nanoid(48);
       const sessionId = await createSession({
+        fortuneTellerId: input.fortuneTellerId,
         clientId: input.clientId,
         clientToken: token,
         scheduledAt: new Date(input.scheduledAt),
@@ -248,6 +495,7 @@ const sessionsRouter = router({
         timerStartedAt: z.number().nullable().optional(),
         carryoverMinutes: z.number().optional(),
         durationMinutes: z.number().optional(),
+        adminNotes: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -314,14 +562,12 @@ const messagesRouter = router({
       z.object({
         sessionId: z.number(),
         sender: z.enum(["admin", "client"]),
-        // base64 encoded image data
         base64Data: z.string(),
         mimeType: z.string().default("image/jpeg"),
         fileName: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
-      // Decode base64 and upload to S3
       const base64 = input.base64Data.replace(/^data:[^;]+;base64,/, "");
       const buffer = Buffer.from(base64, "base64");
       if (buffer.length > 5 * 1024 * 1024) {
@@ -360,7 +606,6 @@ const carryoverRouter = router({
     )
     .mutation(async ({ input }) => {
       await createCarryover(input);
-      // Also update client's carryover balance
       const client = await getClientById(input.clientId);
       if (client) {
         await updateClient(input.clientId, {
@@ -374,33 +619,31 @@ const carryoverRouter = router({
 // ── Settings ───────────────────────────────────────────────────────────────
 
 const settingsRouter = router({
-  list: publicProcedure.query(async () => {
-    return getAllSettings();
-  }),
-
-  get: publicProcedure
-    .input(z.object({ key: z.string() }))
+  list: publicProcedure
+    .input(z.object({ fortuneTellerId: z.number() }))
     .query(async ({ input }) => {
-      const value = await getSetting(input.key);
-      return { key: input.key, value };
+      return getAllSettingsForFortuneTeller(input.fortuneTellerId);
     }),
 
-  set: publicProcedure
-    .input(z.object({ key: z.string(), value: z.string(), label: z.string().optional() }))
-    .mutation(async ({ input }) => {
-      await setSetting(input.key, input.value, input.label);
-      return { success: true };
+  get: publicProcedure
+    .input(z.object({ fortuneTellerId: z.number(), key: z.string() }))
+    .query(async ({ input }) => {
+      const value = await getSettingForFortuneTeller(input.fortuneTellerId, input.key);
+      return { key: input.key, value };
     }),
 
   setBulk: publicProcedure
     .input(
-      z.array(
-        z.object({ key: z.string(), value: z.string(), label: z.string().optional() })
-      )
+      z.object({
+        fortuneTellerId: z.number(),
+        items: z.array(
+          z.object({ key: z.string(), value: z.string(), label: z.string().optional() })
+        ),
+      })
     )
     .mutation(async ({ input }) => {
-      for (const item of input) {
-        await setSetting(item.key, item.value, item.label);
+      for (const item of input.items) {
+        await setSettingForFortuneTeller(input.fortuneTellerId, item.key, item.value, item.label);
       }
       return { success: true };
     }),
@@ -408,7 +651,6 @@ const settingsRouter = router({
 
 // ── Agora RTC ─────────────────────────────────────────────────────────────
 
-// App ID と App Certificate は環境変数から取得（環境変数が未設定の場合はハードコード値を使用）
 const AGORA_APP_ID = process.env.AGORA_APP_ID || "f5ca2b3f054945b5a9fffd388a26366a";
 const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || "266b1950da144fd0b6fca857ba02fefd";
 
@@ -423,13 +665,12 @@ const agoraRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
-        // agora-access-token is a CommonJS module, use createRequire for compatibility
         const { createRequire } = await import("module");
         const require = createRequire(import.meta.url);
         const agoraToken = require("agora-access-token");
         const { RtcTokenBuilder, RtcRole } = agoraToken;
         const role = input.role === "publisher" ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
-        const expireTime = 3600; // 1 hour
+        const expireTime = 3600;
         const currentTime = Math.floor(Date.now() / 1000);
         const privilegeExpireTime = currentTime + expireTime;
 
@@ -493,6 +734,8 @@ export const appRouter = router({
     }),
   }),
   admin: adminRouter,
+  superAdmin: superAdminRouter,
+  fortuneTeller: fortuneTellerRouter,
   clients: clientsRouter,
   sessions: sessionsRouter,
   messages: messagesRouter,

@@ -1,22 +1,21 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useBrand } from "@/contexts/BrandContext";
 
 interface AdminLoginProps {
+  slug: string;
   onSuccess: () => void;
 }
 
-export default function AdminLogin({ onSuccess }: AdminLoginProps) {
+export default function AdminLogin({ slug, onSuccess }: AdminLoginProps) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { brandName, colors } = useBrand();
 
   const loginMutation = trpc.admin.login.useMutation({
-    onSuccess: (data) => {
-      if (data.firstSetup) {
-        toast.success("初回セットアップ完了。このパスワードで管理者ログインできます。");
-      } else {
-        toast.success("ログインしました");
-      }
+    onSuccess: () => {
+      toast.success("ログインしました");
       onSuccess();
     },
     onError: (err) => {
@@ -29,35 +28,35 @@ export default function AdminLogin({ onSuccess }: AdminLoginProps) {
     e.preventDefault();
     if (!password.trim()) return;
     setLoading(true);
-    loginMutation.mutate({ password });
+    loginMutation.mutate({ slug, password });
   };
 
   return (
     <div
       className="min-h-screen flex items-center justify-center"
-      style={{ background: "#f9f5f4" }}
+      style={{ background: colors.main }}
     >
       <div
         className="angelique-card p-10 w-full max-w-sm"
         style={{ textAlign: "center" }}
       >
-        {/* Logo */}
+        {/* Logo / Brand */}
         <div
           style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: "32px",
+            fontSize: "28px",
             fontWeight: 400,
-            color: "#c9a8a3",
+            color: colors.accent,
             letterSpacing: "3px",
             marginBottom: "4px",
           }}
         >
-          ✦ angelique
+          ✦ {brandName}
         </div>
         <div
           style={{
             fontSize: "12px",
-            color: "#9e8480",
+            color: colors.subText,
             marginBottom: "32px",
             letterSpacing: "1px",
           }}
@@ -81,22 +80,16 @@ export default function AdminLogin({ onSuccess }: AdminLoginProps) {
             type="submit"
             className="angelique-btn w-full justify-center"
             disabled={loading || !password.trim()}
-            style={{ width: "100%", justifyContent: "center" }}
+            style={{
+              width: "100%",
+              justifyContent: "center",
+              background: colors.accent,
+              borderColor: colors.accent,
+            }}
           >
             {loading ? "確認中..." : "ログイン"}
           </button>
         </form>
-
-        <p
-          style={{
-            fontSize: "11px",
-            color: "#9e8480",
-            marginTop: "20px",
-            lineHeight: 1.6,
-          }}
-        >
-          初回アクセス時は任意のパスワードを設定してください。
-        </p>
       </div>
     </div>
   );
