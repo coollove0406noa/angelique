@@ -49,6 +49,8 @@ export default function VoiceCall({
   const [callDuration, setCallDuration] = useState(0);
   const [errorDetail, setErrorDetail] = useState("");
   const [showStartHint, setShowStartHint] = useState(true);
+  /** マイク送信音量（0〜200 / デフォルト200） */
+  const [micGain, setMicGainState] = useState(200);
 
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
@@ -101,6 +103,8 @@ export default function VoiceCall({
       rtcClient.on("user-published", async (user, mediaType) => {
         await rtcClient.subscribe(user, mediaType);
         if (mediaType === "audio") {
+          // 受信音量を最大200に設定してから再生
+          user.audioTrack?.setVolume(200);
           user.audioTrack?.play();
           setRemoteUserCount((prev) => prev + 1);
           toast.success(role === "admin" ? "お客様が通話に参加しました" : "占い師が通話に参加しました");
@@ -129,15 +133,27 @@ export default function VoiceCall({
     [role, stopDurationTimer]
   );
 
-  // ── 音声トラック作成（問題1: 高品質設定）────────────────────────────────
+  // ── マイクゲイン変更（スライダー連動）──────────────────────────────────
+  const changeMicGain = useCallback((value: number) => {
+    setMicGainState(value);
+    localAudioTrackRef.current?.setVolume(value);
+  }, []);
+
+  // ── 音声トラック作成（明示的エンコーダー設定 + 最大音量）──────────────
   const createAudioTrack = useCallback(
     async (sdk: typeof import("agora-rtc-sdk-ng").default) => {
       const track = await sdk.createMicrophoneAudioTrack({
-        encoderConfig: "music_high_quality", // 48kbps→128kbps に引き上げ
+        encoderConfig: {
+          sampleRate: 48000, // CD品質サンプルレート
+          stereo: false,     // モノラル（通話に最適）
+          bitrate: 128,      // 128kbps（最大音質）
+        },
         AEC: true,   // エコーキャンセル（必須）
-        ANS: false,  // ノイズ抑制OFF: 自然な声の質感を維持
-        AGC: false,  // 自動ゲインコントロールOFF: 原音量を忠実に伝達
+        ANS: false,  // ノイズ抑制OFF: 自然な声質を維持
+        AGC: false,  // 自動ゲインコントロールOFF: 原音量を忠実に送信
       });
+      // 送信音量を最大200に設定（デフォルト100の2倍）
+      track.setVolume(200);
       return track;
     },
     []
@@ -652,6 +668,39 @@ export default function VoiceCall({
           </>
         )}
       </div>
+
+      {/* ── 管理者専用: マイク音量スライダー ───────────────────── */}
+      {role === "admin" && isConnected && !receiveOnly && (
+        <div style={{ marginTop: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+            <span style={{ fontSize: "11px", color: "#9e8480" }}>
+              <Mic className="w-3 h-3 inline mr-1" />
+              マイク音量
+            </span>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: micGain >= 150 ? "#4caf7d" : "#9e8480" }}>
+              {micGain}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={200}
+            step={10}
+            value={micGain}
+            onChange={(e) => changeMicGain(Number(e.target.value))}
+            style={{
+              width: "100%",
+              accentColor: "#c9a8a3",
+              cursor: "pointer",
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#c9b8b5", marginTop: "2px" }}>
+            <span>0%</span>
+            <span>100%</span>
+            <span>200%</span>
+          </div>
+        </div>
+      )}
 
       {/* ── 補足テキスト ─────────────────────────────────────────── */}
       {!isSessionActive && callStatus === "idle" && preConnectStatus === "failed" && (
