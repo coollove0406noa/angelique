@@ -16,6 +16,7 @@ import AdminSessionDetail from "./pages/AdminSessionDetail";
 import ClientSession from "./pages/ClientSession";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import { FaviconManager } from "./components/FaviconManager";
 
 // Wrapper that provides BrandContext for admin pages
 function AdminBrandWrapper({ children }: { children: React.ReactNode }) {
@@ -76,6 +77,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster richColors position="top-right" />
+          <FaviconManager />
           <AdminAuthProvider>
             <AdminBrandWrapper>
               <Router />
