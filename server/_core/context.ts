@@ -10,21 +10,11 @@ export type TrpcContext = {
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
-  let user: User | null = null;
-
-  // Manus OAuth は OAUTH_SERVER_URL が設定されている環境のみ使用
-  if (process.env.OAUTH_SERVER_URL) {
-    try {
-      const { sdk } = await import("./sdk");
-      user = await sdk.authenticateRequest(opts.req);
-    } catch {
-      user = null;
-    }
-  }
-
+  // angelique は独自の admin_token / super_admin_token Cookie で認証するため
+  // Manus OAuth SDK は使用しない。user は常に null。
   return {
     req: opts.req,
     res: opts.res,
-    user,
+    user: null as User | null,
   };
 }
