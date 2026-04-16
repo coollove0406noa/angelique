@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
 import VoiceCall from "@/components/VoiceCall";
+import { MicTest } from "@/components/MicTest";
 import LinkifiedText from "@/components/LinkifiedText";
 import AdminLogin from "./AdminLogin";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
@@ -922,11 +923,17 @@ export default function AdminSession() {
           <div className="flex flex-col gap-4" style={{ width: "260px", minWidth: "260px" }}>
             {/* Voice Call Panel (voice sessions only) */}
             {session?.sessionType === "voice" && (
-              <VoiceCall
-                sessionId={sessionId}
-                role="admin"
-                isSessionActive={timerStatus === "active" || timerStatus === "paused"}
-              />
+              <>
+                {/* 問題2: セッション前マイクテスト */}
+                {timerStatus === "idle" && <MicTest />}
+                {/* 問題3: preConnect=true で事前チャンネル接続 */}
+                <VoiceCall
+                  sessionId={sessionId}
+                  role="admin"
+                  isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+                  preConnect={true}
+                />
+              </>
             )}
 
             {/* Extension Notification */}

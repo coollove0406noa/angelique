@@ -192,11 +192,17 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
   }, []);
 
   // ── マイクテスト（音声鑑定のみ）────────────────────────────────────────
-  const [micStatus, setMicStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+  const [micStatus, setMicStatus] = useState<"idle" | "testing" | "ok" | "denied" | "notfound" | "error">("idle");
   const [micVolume, setMicVolume] = useState(0);
-  const micStreamRef  = useRef<MediaStream | null>(null);
-  const analyserRef   = useRef<AnalyserNode | null>(null);
-  const animFrameRef  = useRef<number | null>(null);
+  // ループバックテスト用
+  const [loopbackActive, setLoopbackActive] = useState(false);
+  const [loopbackCountdown, setLoopbackCountdown] = useState(5);
+  const micStreamRef   = useRef<MediaStream | null>(null);
+  const analyserRef    = useRef<AnalyserNode | null>(null);
+  const animFrameRef   = useRef<number | null>(null);
+  const loopCtxRef     = useRef<AudioContext | null>(null);
+  const loopStreamRef  = useRef<MediaStream | null>(null);
+  const loopTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startMicTest = useCallback(async () => {
     setMicStatus("testing");
@@ -233,17 +239,67 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         }
       };
       animFrameRef.current = requestAnimationFrame(measure);
-    } catch {
-      setMicStatus("error");
+    } catch (err: unknown) {
+      const error = err as Error;
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        setMicStatus("denied");
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        setMicStatus("notfound");
+      } else {
+        setMicStatus("error");
+      }
     }
+  }, []);
+
+  // ループバックテスト（自分の声を聞く・5秒）
+  const startLoopbackTest = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      loopStreamRef.current = stream;
+      const audioCtx = new AudioContext();
+      loopCtxRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(audioCtx.destination);
+
+      setLoopbackActive(true);
+      setLoopbackCountdown(5);
+      let count = 5;
+      loopTimerRef.current = setInterval(() => {
+        count -= 1;
+        setLoopbackCountdown(count);
+        if (count <= 0) {
+          clearInterval(loopTimerRef.current!);
+          loopTimerRef.current = null;
+          loopStreamRef.current?.getTracks().forEach((t) => t.stop());
+          loopCtxRef.current?.close().catch(() => {});
+          loopStreamRef.current = null;
+          loopCtxRef.current = null;
+          setLoopbackActive(false);
+          setLoopbackCountdown(5);
+        }
+      }, 1000);
+    } catch {
+      setMicStatus("denied");
+    }
+  }, []);
+
+  const stopLoopback = useCallback(() => {
+    if (loopTimerRef.current) { clearInterval(loopTimerRef.current); loopTimerRef.current = null; }
+    loopStreamRef.current?.getTracks().forEach((t) => t.stop());
+    loopCtxRef.current?.close().catch(() => {});
+    loopStreamRef.current = null;
+    loopCtxRef.current = null;
+    setLoopbackActive(false);
+    setLoopbackCountdown(5);
   }, []);
 
   useEffect(() => {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      stopLoopback();
     };
-  }, []);
+  }, [stopLoopback]);
 
   // ── レンダリング ──────────────────────────────────────────────────────
   return (
@@ -309,6 +365,8 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         {sessionType === "voice" && (
           <div className="wr-mic-panel">
             <div className="wr-mic-title">🎤 マイクテスト</div>
+
+            {/* 音量チェック */}
             {micStatus === "idle" && (
               <button onClick={startMicTest} className="wr-mic-btn">
                 マイクをテストする
@@ -319,7 +377,7 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
                 <div className="wr-vol-bar">
                   <div className="wr-vol-fill" style={{ width: `${micVolume}%` }} />
                 </div>
-                <p className="wr-mic-sub">マイクの音量を測定中...</p>
+                <p className="wr-mic-sub">マイクの音量を測定中... 声を出してみてください</p>
               </div>
             )}
             {micStatus === "ok" && (
@@ -328,10 +386,44 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
                 <span>マイクが正常に動作しています</span>
               </div>
             )}
+
+            {/* エラー系 */}
+            {micStatus === "denied" && (
+              <div className="wr-mic-denied">
+                <p className="wr-mic-denied-title">⚠ マイクへのアクセスが拒否されました</p>
+                <ol className="wr-mic-guide">
+                  <li>ブラウザのアドレスバー左端の 🔒 アイコンをタップ</li>
+                  <li>「マイク」を <strong>許可</strong> に変更</li>
+                  <li>ページを再読み込み（更新）してください</li>
+                </ol>
+                <button onClick={startMicTest} className="wr-mic-retry">再試行</button>
+              </div>
+            )}
+            {micStatus === "notfound" && (
+              <div className="wr-mic-error">
+                <p>⚠ マイクが見つかりません</p>
+                <p className="wr-mic-sub">スマートフォンの場合はブラウザを変更してお試しください（Safari → Chrome など）</p>
+                <button onClick={startMicTest} className="wr-mic-retry">再試行</button>
+              </div>
+            )}
             {micStatus === "error" && (
               <div className="wr-mic-error">
-                <span>⚠ マイクが検出できませんでした</span>
+                <p>⚠ マイクが検出できませんでした</p>
+                <p className="wr-mic-sub">声を出しながらテストしてください</p>
                 <button onClick={startMicTest} className="wr-mic-retry">再試行</button>
+              </div>
+            )}
+
+            {/* ループバック（自分の声を聞く）ボタン */}
+            {(micStatus === "ok" || micStatus === "idle") && !loopbackActive && (
+              <button onClick={startLoopbackTest} className="wr-mic-loopback-btn">
+                🔊 声を聞いてみる（5秒）
+              </button>
+            )}
+            {loopbackActive && (
+              <div className="wr-mic-loopback-active">
+                <span>🎧 聞こえますか？ {loopbackCountdown}秒後に停止</span>
+                <button onClick={stopLoopback} className="wr-mic-retry">停止</button>
               </div>
             )}
           </div>
@@ -547,6 +639,66 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           font-size: 0.75rem;
           cursor: pointer;
           font-family: 'Noto Sans JP', sans-serif;
+        }
+        /* マイク拒否ガイド */
+        .wr-mic-denied {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.5rem;
+          background: rgba(255,80,80,0.08);
+          border: 1px solid rgba(232,168,163,0.4);
+          border-radius: 0.75rem;
+          padding: 0.75rem 1rem;
+          width: 100%;
+        }
+        .wr-mic-denied-title {
+          color: #e8a8a3;
+          font-size: 0.82rem;
+          font-weight: 700;
+          font-family: 'Noto Sans JP', sans-serif;
+          margin: 0;
+        }
+        .wr-mic-guide {
+          color: #c9a8a3;
+          font-size: 0.76rem;
+          font-family: 'Noto Sans JP', sans-serif;
+          line-height: 1.8;
+          padding-left: 1.2rem;
+          margin: 0;
+          text-align: left;
+        }
+        .wr-mic-sub {
+          color: #9e8480;
+          font-size: 0.74rem;
+          font-family: 'Noto Sans JP', sans-serif;
+          margin: 0;
+        }
+        /* ループバックテスト */
+        .wr-mic-loopback-btn {
+          background: rgba(100,180,150,0.15);
+          border: 1px solid rgba(100,180,150,0.4);
+          color: #a8e0c9;
+          border-radius: 0.5rem;
+          padding: 0.3rem 0.8rem;
+          font-size: 0.75rem;
+          cursor: pointer;
+          font-family: 'Noto Sans JP', sans-serif;
+          margin-top: 0.25rem;
+        }
+        .wr-mic-loopback-btn:hover { background: rgba(100,180,150,0.25); }
+        .wr-mic-loopback-active {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          background: rgba(100,180,150,0.1);
+          border: 1px solid rgba(100,180,150,0.3);
+          border-radius: 0.5rem;
+          padding: 0.4rem 0.75rem;
+          font-size: 0.78rem;
+          color: #a8e0c9;
+          font-family: 'Noto Sans JP', sans-serif;
+          margin-top: 0.25rem;
         }
         /* スマホ対応 */
         @media (max-width: 420px) {
