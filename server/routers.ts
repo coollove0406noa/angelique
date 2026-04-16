@@ -43,6 +43,18 @@ import { publicProcedure, router } from "./_core/trpc";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/** 本番(HTTPS)では sameSite: "none" + secure: true、開発では lax + non-secure */
+function authCookieOptions() {
+  const isProd = process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: (isProd ? "none" : "lax") as "none" | "lax",
+    maxAge: 24 * 60 * 60 * 1000,
+    path: "/",
+  };
+}
+
 async function getAdminTokenFromCookie(cookieHeader: string): Promise<string | null> {
   const match = cookieHeader.match(/admin_token=([^;]+)/);
   return match ? match[1] : null;
@@ -70,13 +82,7 @@ const adminRouter = router({
       }
 
       const token = nanoid(32);
-      ctx.res.cookie("admin_token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 24 * 60 * 60 * 1000,
-        path: "/",
-      });
+      ctx.res.cookie("admin_token", token, authCookieOptions());
       await updateFortuneTeller(ft.id, { sessionToken: token });
 
       return {
@@ -175,13 +181,7 @@ const superAdminRouter = router({
         await setSuperAdminPasswordHash(newHash);
         const token = nanoid(32);
         await setSuperAdminSessionToken(token);
-        ctx.res.cookie("super_admin_token", token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 24 * 60 * 60 * 1000,
-          path: "/",
-        });
+        ctx.res.cookie("super_admin_token", token, authCookieOptions());
         return { success: true, firstSetup: true };
       }
 
@@ -191,13 +191,7 @@ const superAdminRouter = router({
       }
       const token = nanoid(32);
       await setSuperAdminSessionToken(token);
-      ctx.res.cookie("super_admin_token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 24 * 60 * 60 * 1000,
-        path: "/",
-      });
+      ctx.res.cookie("super_admin_token", token, authCookieOptions());
       return { success: true, firstSetup: false };
     }),
 

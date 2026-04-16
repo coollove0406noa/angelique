@@ -16,7 +16,10 @@ export default function AdminLogin({ slug, onSuccess }: AdminLoginProps) {
   const loginMutation = trpc.admin.login.useMutation({
     onSuccess: () => {
       toast.success("ログインしました");
-      onSuccess();
+      // Cookieが確実にブラウザに保存されてから遷移するためフルリロード
+      setTimeout(() => {
+        window.location.href = `/admin/${slug}`;
+      }, 300);
     },
     onError: (err) => {
       toast.error(err.message || "ログインに失敗しました");
