@@ -687,36 +687,61 @@ export default function VoiceCall({
         )}
       </div>
 
-      {/* ── 管理者専用: マイク音量スライダー ───────────────────── */}
-      {role === "admin" && isConnected && !receiveOnly && (
-        <div style={{ marginTop: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-            <span style={{ fontSize: "11px", color: "#9e8480" }}>
-              <Mic className="w-3 h-3 inline mr-1" />
-              マイク音量
-            </span>
-            <span style={{ fontSize: "11px", fontWeight: 600, color: micGain >= 150 ? "#4caf7d" : "#9e8480" }}>
-              {micGain}%
-            </span>
+      {/* ── 管理者専用: 音量スライダー（送信 + 受信） ──────────── */}
+      {role === "admin" && isConnected && (
+        <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+
+          {/* 自分の声（送信音量） */}
+          {!receiveOnly && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                <span style={{ fontSize: "11px", color: "#9e8480" }}>
+                  <Mic className="w-3 h-3 inline mr-1" />
+                  自分の声（送信音量）
+                </span>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: micGain >= 150 ? "#4caf7d" : "#9e8480" }}>
+                  {micGain}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={200}
+                step={10}
+                value={micGain}
+                onChange={(e) => changeMicGain(Number(e.target.value))}
+                style={{ width: "100%", accentColor: "#c9a8a3", cursor: "pointer" }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#c9b8b5", marginTop: "2px" }}>
+                <span>0%</span><span>100%</span><span>200%</span>
+              </div>
+            </div>
+          )}
+
+          {/* お客様の声（受信音量） */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+              <span style={{ fontSize: "11px", color: "#9e8480" }}>
+                🔊 お客様の声（受信音量）
+              </span>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: remoteVolume >= 150 ? "#4caf7d" : "#9e8480" }}>
+                {remoteVolume}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={200}
+              step={10}
+              value={remoteVolume}
+              onChange={(e) => changeRemoteVolume(Number(e.target.value))}
+              style={{ width: "100%", accentColor: "#a3c9c9", cursor: "pointer" }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#c9b8b5", marginTop: "2px" }}>
+              <span>0%</span><span>100%</span><span>200%</span>
+            </div>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={200}
-            step={10}
-            value={micGain}
-            onChange={(e) => changeMicGain(Number(e.target.value))}
-            style={{
-              width: "100%",
-              accentColor: "#c9a8a3",
-              cursor: "pointer",
-            }}
-          />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#c9b8b5", marginTop: "2px" }}>
-            <span>0%</span>
-            <span>100%</span>
-            <span>200%</span>
-          </div>
+
         </div>
       )}
 
