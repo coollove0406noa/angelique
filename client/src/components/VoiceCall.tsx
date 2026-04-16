@@ -51,6 +51,8 @@ export default function VoiceCall({
   const [showStartHint, setShowStartHint] = useState(true);
   /** マイク送信音量（0〜200 / デフォルト200） */
   const [micGain, setMicGainState] = useState(200);
+  /** リモート受信音量 state（スライダーUI用） */
+  const [remoteVolume, setRemoteVolumeState] = useState(100);
 
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
@@ -60,6 +62,10 @@ export default function VoiceCall({
   const preConnectedWaitingRef = useRef(false);
   // isSessionActive の前回値（変化検知用）
   const prevIsSessionActiveRef = useRef(isSessionActive);
+  // リモートトラック管理（音量スライダー用）
+  const remoteTracksRef = useRef<Map<number | string, import("agora-rtc-sdk-ng").IRemoteAudioTrack>>(new Map());
+  /** リモート受信音量（0〜200 / デフォルト100）— refで常に最新値を保持 */
+  const remoteVolumeRef = useRef(100);
 
   const getTokenMutation = trpc.agora.getToken.useMutation();
   const channelName = `session-${sessionId}`;
@@ -102,22 +108,26 @@ export default function VoiceCall({
     (rtcClient: import("agora-rtc-sdk-ng").IAgoraRTCClient) => {
       rtcClient.on("user-published", async (user, mediaType) => {
         await rtcClient.subscribe(user, mediaType);
-        if (mediaType === "audio") {
-          // 受信音量を最大200に設定してから再生
-          user.audioTrack?.setVolume(200);
-          user.audioTrack?.play();
+        if (mediaType === "audio" && user.audioTrack) {
+          // リモートトラックを保存（音量スライダーから後から操作できるよう）
+          remoteTracksRef.current.set(user.uid, user.audioTrack);
+          // 現在の受信音量設定を適用してから再生
+          user.audioTrack.setVolume(remoteVolumeRef.current);
+          user.audioTrack.play();
           setRemoteUserCount((prev) => prev + 1);
           toast.success(role === "admin" ? "お客様が通話に参加しました" : "占い師が通話に参加しました");
         }
       });
 
-      rtcClient.on("user-unpublished", (_user, mediaType) => {
+      rtcClient.on("user-unpublished", (user, mediaType) => {
         if (mediaType === "audio") {
+          remoteTracksRef.current.delete(user.uid);
           setRemoteUserCount((prev) => Math.max(0, prev - 1));
         }
       });
 
-      rtcClient.on("user-left", () => {
+      rtcClient.on("user-left", (user) => {
+        remoteTracksRef.current.delete(user.uid);
         setRemoteUserCount((prev) => Math.max(0, prev - 1));
         toast.info(role === "admin" ? "お客様が通話を終了しました" : "占い師が通話を終了しました");
       });
@@ -137,6 +147,13 @@ export default function VoiceCall({
   const changeMicGain = useCallback((value: number) => {
     setMicGainState(value);
     localAudioTrackRef.current?.setVolume(value);
+  }, []);
+
+  // ── リモート受信音量変更（スライダー連動）──────────────────────────────
+  const changeRemoteVolume = useCallback((value: number) => {
+    remoteVolumeRef.current = value;
+    setRemoteVolumeState(value);
+    remoteTracksRef.current.forEach((track) => track.setVolume(value));
   }, []);
 
   // ── 音声トラック作成（明示的エンコーダー設定 + 最大音量）──────────────
@@ -355,6 +372,7 @@ export default function VoiceCall({
     } catch (err) {
       console.error("[VoiceCall] endCall error:", err);
     }
+    remoteTracksRef.current.clear();
     setCallStatus("idle");
     setPreConnectStatus("idle");
     setIsMuted(false);
@@ -699,6 +717,83 @@ export default function VoiceCall({
             <span>100%</span>
             <span>200%</span>
           </div>
+        </div>
+      )}
+
+      {/* ── お客様専用: 受信音量スライダー（占い師の声） ────────── */}
+      {role === "client" && isConnected && isSessionActive && (
+        <div
+          style={{
+            marginTop: "14px",
+            background: "rgba(255,255,255,0.7)",
+            borderRadius: "12px",
+            padding: "12px 14px",
+            border: "1px solid #e8e0dd",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "8px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#6b5b58", fontWeight: 600 }}>
+              🔊 占い師の声の音量
+            </span>
+            <span
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                minWidth: "44px",
+                textAlign: "right",
+                color:
+                  remoteVolume === 0
+                    ? "#c0392b"
+                    : remoteVolume >= 150
+                    ? "#4caf7d"
+                    : "#6b5b58",
+              }}
+            >
+              {remoteVolume}%
+            </span>
+          </div>
+          {/* スマホでも操作しやすい高さのスライダー */}
+          <input
+            type="range"
+            min={0}
+            max={200}
+            step={10}
+            value={remoteVolume}
+            onChange={(e) => changeRemoteVolume(Number(e.target.value))}
+            style={{
+              width: "100%",
+              height: "6px",
+              accentColor: "#c9a8a3",
+              cursor: "pointer",
+              /* スマホでの誤タップを防ぐためタッチ領域を確保 */
+              touchAction: "none",
+            }}
+          />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: "11px",
+              color: "#c9b8b5",
+              marginTop: "4px",
+            }}
+          >
+            <span>🔇 0%</span>
+            <span>100%</span>
+            <span>200% 🔊</span>
+          </div>
+          {remoteVolume === 0 && (
+            <p style={{ fontSize: "11px", color: "#c0392b", marginTop: "6px", textAlign: "center" }}>
+              ミュート中です。スライダーを右に動かすと聞こえます
+            </p>
+          )}
         </div>
       )}
 
