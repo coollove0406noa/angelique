@@ -6,6 +6,7 @@ export interface FortuneTellerInfo {
   slug: string;
   brandName: string;
   themeColor: string;
+  accentColor: string;
 }
 
 interface AdminAuthContextType {
@@ -35,6 +36,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
           slug: data.slug!,
           brandName: data.brandName!,
           themeColor: data.themeColor!,
+          accentColor: data.accentColor ?? "#c9a8a3",
         }
       : null;
 

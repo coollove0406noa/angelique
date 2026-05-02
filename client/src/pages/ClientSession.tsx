@@ -556,7 +556,8 @@ export default function ClientSession() {
   return (
     <BrandProvider
       brandName={fortuneTellerInfo?.brandName ?? "angelique"}
-      themeColor={fortuneTellerInfo?.themeColor ?? "dusty-pink"}
+      themeColor={fortuneTellerInfo?.themeColor ?? "#f3e7e5"}
+      accentColor={fortuneTellerInfo?.accentColor ?? "#c9a8a3"}
     >
     <div
       className="min-h-screen flex flex-col"

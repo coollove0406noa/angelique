@@ -5,7 +5,6 @@ import AngeliqueHeader from "@/components/AngeliqueHeader";
 import AdminLogin from "./AdminLogin";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { useBrand } from "@/contexts/BrandContext";
-import { THEME_COLOR_KEYS, THEME_COLOR_LABELS, THEME_COLOR_MAP } from "@/contexts/BrandContext";
 import { useParams } from "wouter";
 
 export default function AdminSettings() {
@@ -25,7 +24,8 @@ export default function AdminSettings() {
   const [savingUrls, setSavingUrls] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [brandName, setBrandName] = useState("");
-  const [themeColor, setThemeColor] = useState(fortuneTeller?.themeColor ?? "dusty-pink");
+  const [themeColor, setThemeColor] = useState(fortuneTeller?.themeColor ?? "#f3e7e5");
+  const [accentColor, setAccentColor] = useState(fortuneTeller?.accentColor ?? "#c9a8a3");
   const [savingBrand, setSavingBrand] = useState(false);
 
   const { data: settings } = trpc.settings.list.useQuery(
@@ -66,7 +66,19 @@ export default function AdminSettings() {
   useEffect(() => {
     if (fortuneTeller) {
       setBrandName(fortuneTeller.brandName);
-      setThemeColor(fortuneTeller.themeColor);
+      // 旧キー名の場合は hex に変換してセット
+      const legacy: Record<string, string> = {
+        "dusty-pink": "#f3e7e5", lavender: "#ede7f6", "mint-green": "#e8f5e9",
+        "sky-blue": "#e3f2fd", peach: "#fce4ec", gold: "#fff8e1",
+        mauve: "#f3e5f5", "off-white": "#fafafa",
+      };
+      const legacyAccent: Record<string, string> = {
+        "dusty-pink": "#c9a8a3", lavender: "#9575cd", "mint-green": "#66bb6a",
+        "sky-blue": "#42a5f5", peach: "#f48fb1", gold: "#ffc107",
+        mauve: "#ab47bc", "off-white": "#9e9e9e",
+      };
+      setThemeColor(legacy[fortuneTeller.themeColor] ?? fortuneTeller.themeColor);
+      setAccentColor(legacyAccent[fortuneTeller.themeColor] ?? fortuneTeller.accentColor ?? "#c9a8a3");
     }
   }, [fortuneTeller]);
 
@@ -95,7 +107,7 @@ export default function AdminSettings() {
   function handleSaveBrand(e: React.FormEvent) {
     e.preventDefault();
     setSavingBrand(true);
-    updateBrand.mutate({ slug, brandName, themeColor });
+    updateBrand.mutate({ slug, brandName, themeColor, accentColor });
   }
 
   if (isLoading) {
@@ -144,53 +156,200 @@ export default function AdminSettings() {
 
             <div className="mb-6">
               <label className="angelique-label">テーマカラー</label>
-              <p style={{ fontSize: "11px", color: colors.subText, marginBottom: "12px" }}>
-                選んだカラーがヘッダー・ボタン・吹き出しの色に反映されます
+              <p style={{ fontSize: "11px", color: colors.subText, marginBottom: "16px" }}>
+                メインカラーとアクセントカラーの2色を自由に設定できます。
+                変更はヘッダー・ボタン・吹き出し・メールに反映されます。
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                {THEME_COLOR_KEYS.map((key) => {
-                  const c = THEME_COLOR_MAP[key];
-                  const isSelected = themeColor === key;
-                  return (
-                    <label
-                      key={key}
+
+              {/* プレビュー */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  padding: "16px",
+                  borderRadius: "14px",
+                  background: themeColor,
+                  border: `1.5px solid ${accentColor}`,
+                  marginBottom: "16px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontSize: "13px", color: "#4a3b38", fontWeight: 500 }}>プレビュー：</span>
+                <span
+                  style={{
+                    background: accentColor,
+                    color: "#ffffff",
+                    borderRadius: "20px",
+                    padding: "5px 16px",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                  }}
+                >
+                  ボタン
+                </span>
+                <span
+                  style={{
+                    background: "transparent",
+                    color: accentColor,
+                    border: `1.5px solid ${accentColor}`,
+                    borderRadius: "20px",
+                    padding: "5px 16px",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                  }}
+                >
+                  アウトライン
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4" style={{ maxWidth: "480px" }}>
+                {/* メインカラー */}
+                <div>
+                  <label className="angelique-label">メインカラー（背景・ベース）</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "6px" }}>
+                    <div style={{ position: "relative", width: "52px", height: "52px" }}>
+                      <input
+                        type="color"
+                        value={themeColor}
+                        onChange={(e) => setThemeColor(e.target.value)}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          opacity: 0,
+                          cursor: "pointer",
+                          border: "none",
+                          padding: 0,
+                        }}
+                        title="メインカラーを選択"
+                      />
+                      <div
+                        style={{
+                          width: "52px",
+                          height: "52px",
+                          borderRadius: "12px",
+                          background: themeColor,
+                          border: `2px solid ${colors.border}`,
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "14px", color: colors.text, fontWeight: 500 }}>{themeColor.toUpperCase()}</div>
+                      <div style={{ fontSize: "11px", color: colors.subText }}>ページ背景・情報ボックス</div>
+                    </div>
+                    <input
+                      type="text"
+                      className="angelique-input"
+                      value={themeColor}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setThemeColor(v);
+                      }}
+                      placeholder="#f3e7e5"
+                      style={{ width: "110px", fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+
+                {/* アクセントカラー */}
+                <div>
+                  <label className="angelique-label">アクセントカラー（ボタン・強調）</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "6px" }}>
+                    <div style={{ position: "relative", width: "52px", height: "52px" }}>
+                      <input
+                        type="color"
+                        value={accentColor}
+                        onChange={(e) => setAccentColor(e.target.value)}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          width: "100%",
+                          height: "100%",
+                          opacity: 0,
+                          cursor: "pointer",
+                          border: "none",
+                          padding: 0,
+                        }}
+                        title="アクセントカラーを選択"
+                      />
+                      <div
+                        style={{
+                          width: "52px",
+                          height: "52px",
+                          borderRadius: "12px",
+                          background: accentColor,
+                          border: `2px solid ${colors.border}`,
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "14px", color: colors.text, fontWeight: 500 }}>{accentColor.toUpperCase()}</div>
+                      <div style={{ fontSize: "11px", color: colors.subText }}>ボタン・ヘッダー・メール</div>
+                    </div>
+                    <input
+                      type="text"
+                      className="angelique-input"
+                      value={accentColor}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setAccentColor(v);
+                      }}
+                      placeholder="#c9a8a3"
+                      style={{ width: "110px", fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* プリセット */}
+              <div style={{ marginTop: "16px" }}>
+                <div style={{ fontSize: "11px", color: colors.subText, marginBottom: "8px" }}>プリセット</div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {[
+                    { label: "くすみピンク", main: "#f3e7e5", accent: "#c9a8a3" },
+                    { label: "ラベンダー",   main: "#ede7f6", accent: "#9575cd" },
+                    { label: "ミント",       main: "#e8f5e9", accent: "#66bb6a" },
+                    { label: "スカイ",       main: "#e3f2fd", accent: "#42a5f5" },
+                    { label: "ピーチ",       main: "#fce4ec", accent: "#f48fb1" },
+                    { label: "ゴールド",     main: "#fff8e1", accent: "#ffc107" },
+                    { label: "モーブ",       main: "#f3e5f5", accent: "#ab47bc" },
+                    { label: "モノ",         main: "#fafafa", accent: "#9e9e9e" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => { setThemeColor(preset.main); setAccentColor(preset.accent); }}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 14px",
-                        borderRadius: "12px",
-                        border: isSelected ? `2px solid ${c.accent}` : `1.5px solid ${colors.border}`,
-                        background: isSelected ? c.main : "#ffffff",
+                        gap: "6px",
+                        padding: "5px 10px",
+                        borderRadius: "20px",
+                        border: `1.5px solid ${themeColor === preset.main && accentColor === preset.accent ? preset.accent : colors.border}`,
+                        background: preset.main,
                         cursor: "pointer",
-                        transition: "all 0.2s",
+                        fontSize: "11px",
+                        color: "#4a3b38",
+                        transition: "all 0.15s",
                       }}
                     >
-                      <input
-                        type="radio"
-                        name="themeColor"
-                        value={key}
-                        checked={isSelected}
-                        onChange={() => setThemeColor(key)}
-                        style={{ accentColor: c.accent }}
-                      />
-                      {/* Color swatch */}
-                      <div
+                      <span
                         style={{
-                          width: "20px",
-                          height: "20px",
+                          width: "12px",
+                          height: "12px",
                           borderRadius: "50%",
-                          background: c.accent,
-                          border: `2px solid ${c.border}`,
+                          background: preset.accent,
                           flexShrink: 0,
                         }}
                       />
-                      <span style={{ fontSize: "12px", color: c.text, fontWeight: isSelected ? 600 : 400 }}>
-                        {THEME_COLOR_LABELS[key]}
-                      </span>
-                    </label>
-                  );
-                })}
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
-import { THEME_COLOR_KEYS, THEME_COLOR_LABELS, THEME_COLOR_MAP } from "@/contexts/BrandContext";
+import { resolveColors } from "@/contexts/BrandContext";
 import SuperAdminLogin from "./SuperAdminLogin";
 
 type FortuneTeller = {
@@ -13,6 +13,76 @@ type FortuneTeller = {
   isActive: boolean;
   createdAt: Date;
 };
+
+const PRESETS = [
+  { label: "くすみピンク", main: "#f3e7e5", accent: "#c9a8a3" },
+  { label: "ラベンダー",   main: "#ede7f6", accent: "#9575cd" },
+  { label: "ミント",       main: "#e8f5e9", accent: "#66bb6a" },
+  { label: "スカイ",       main: "#e3f2fd", accent: "#42a5f5" },
+  { label: "ピーチ",       main: "#fce4ec", accent: "#f48fb1" },
+  { label: "ゴールド",     main: "#fff8e1", accent: "#ffc107" },
+  { label: "モーブ",       main: "#f3e5f5", accent: "#ab47bc" },
+  { label: "モノ",         main: "#fafafa", accent: "#9e9e9e" },
+];
+
+function ColorPickerInline({
+  main, accent, onChangeMain, onChangeAccent,
+}: {
+  main: string; accent: string;
+  onChangeMain: (v: string) => void;
+  onChangeAccent: (v: string) => void;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
+        {PRESETS.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => { onChangeMain(p.main); onChangeAccent(p.accent); }}
+            style={{
+              display: "flex", alignItems: "center", gap: "5px",
+              padding: "4px 10px", borderRadius: "20px",
+              border: `1.5px solid ${main === p.main && accent === p.accent ? p.accent : "#d4bfbb"}`,
+              background: p.main, cursor: "pointer", fontSize: "11px", color: "#4a3b38",
+            }}
+          >
+            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: p.accent, flexShrink: 0 }} />
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "4px" }}>メインカラー</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ position: "relative", width: "36px", height: "36px" }}>
+              <input type="color" value={main} onChange={(e) => onChangeMain(e.target.value)}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: main, border: "1.5px solid #d4bfbb", pointerEvents: "none" }} />
+            </div>
+            <input type="text" value={main}
+              onChange={(e) => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) onChangeMain(e.target.value); }}
+              style={{ width: "90px", padding: "5px 8px", borderRadius: "8px", border: "1.5px solid #d4bfbb", fontSize: "12px", fontFamily: "monospace", background: "#fafafa" }} />
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "4px" }}>アクセントカラー</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ position: "relative", width: "36px", height: "36px" }}>
+              <input type="color" value={accent} onChange={(e) => onChangeAccent(e.target.value)}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: accent, border: "1.5px solid #d4bfbb", pointerEvents: "none" }} />
+            </div>
+            <input type="text" value={accent}
+              onChange={(e) => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) onChangeAccent(e.target.value); }}
+              style={{ width: "90px", padding: "5px 8px", borderRadius: "8px", border: "1.5px solid #d4bfbb", fontSize: "12px", fontFamily: "monospace", background: "#fafafa" }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SuperAdminDashboard() {
   const [, navigate] = useLocation();
@@ -31,28 +101,22 @@ export default function SuperAdminDashboard() {
   const [editingFt, setEditingFt] = useState<FortuneTeller | null>(null);
 
   const [createForm, setCreateForm] = useState({
-    slug: "",
-    brandName: "",
-    password: "",
-    themeColor: "dusty-pink",
+    slug: "", brandName: "", password: "",
+    themeColor: "#f3e7e5", accentColor: "#c9a8a3",
   });
 
   const [editForm, setEditForm] = useState({
-    brandName: "",
-    themeColor: "dusty-pink",
-    isActive: true,
-    newPassword: "",
+    brandName: "", themeColor: "#f3e7e5", accentColor: "#c9a8a3",
+    isActive: true, newPassword: "",
   });
 
-  const logoutMutation = trpc.superAdmin.logout.useMutation({
-    onSuccess: () => refetchAuth(),
-  });
+  const logoutMutation = trpc.superAdmin.logout.useMutation({ onSuccess: () => refetchAuth() });
 
   const createMutation = trpc.superAdmin.createFortuneTeller.useMutation({
     onSuccess: (data) => {
       toast.success(`${createForm.brandName}（/${data.slug}）を作成しました`);
       setShowCreateForm(false);
-      setCreateForm({ slug: "", brandName: "", password: "", themeColor: "dusty-pink" });
+      setCreateForm({ slug: "", brandName: "", password: "", themeColor: "#f3e7e5", accentColor: "#c9a8a3" });
       refetchFt();
     },
     onError: (e) => toast.error(e.message),
@@ -70,15 +134,15 @@ export default function SuperAdminDashboard() {
 
   function openEdit(ft: FortuneTeller) {
     setEditingFt(ft);
-    setEditForm({ brandName: ft.brandName, themeColor: ft.themeColor, isActive: ft.isActive, newPassword: "" });
+    const c = resolveColors(ft.themeColor);
+    setEditForm({ brandName: ft.brandName, themeColor: c.main, accentColor: c.accent, isActive: ft.isActive, newPassword: "" });
     setShowEditForm(true);
   }
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!createForm.slug || !createForm.brandName || !createForm.password) {
-      toast.error("必須項目を入力してください");
-      return;
+      toast.error("必須項目を入力してください"); return;
     }
     createMutation.mutate(createForm);
   }
@@ -97,7 +161,7 @@ export default function SuperAdminDashboard() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#f9f5f4" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#f3e7e5" }}>
         <div style={{ color: "#9e8480" }}>読み込み中...</div>
       </div>
     );
@@ -132,10 +196,7 @@ export default function SuperAdminDashboard() {
               占い師アカウントの作成・編集・有効/無効の管理
             </p>
           </div>
-          <button
-            className="angelique-btn"
-            onClick={() => setShowCreateForm(true)}
-          >
+          <button className="angelique-btn" onClick={() => setShowCreateForm(true)}>
             ✦ 新規アカウント作成
           </button>
         </div>
@@ -149,17 +210,16 @@ export default function SuperAdminDashboard() {
             </div>
           )}
           {fortuneTellers.map((ft) => {
-            const colors = THEME_COLOR_MAP[ft.themeColor as keyof typeof THEME_COLOR_MAP] ?? THEME_COLOR_MAP["dusty-pink"];
+            const c = resolveColors(ft.themeColor);
             return (
               <div
                 key={ft.id}
                 className="angelique-card p-5"
-                style={{ borderLeft: `4px solid ${colors.accent}`, opacity: ft.isActive ? 1 : 0.6 }}
+                style={{ borderLeft: `4px solid ${c.accent}`, opacity: ft.isActive ? 1 : 0.6 }}
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    {/* Color swatch */}
-                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: colors.accent, flexShrink: 0, border: `3px solid ${colors.border}` }} />
+                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: c.accent, flexShrink: 0, border: `3px solid ${c.border}` }} />
                     <div>
                       <div className="flex items-center gap-2">
                         <span style={{ fontSize: "16px", fontWeight: 500, color: "#6b5b58" }}>{ft.brandName}</span>
@@ -167,25 +227,19 @@ export default function SuperAdminDashboard() {
                           <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f5f5f5", color: "#9e9e9e", border: "1px solid #e0e0e0" }}>無効</span>
                         )}
                       </div>
-                      <div style={{ fontSize: "12px", color: "#9e8480", marginTop: "2px" }}>
-                        /admin/<strong>{ft.slug}</strong> · {THEME_COLOR_LABELS[ft.themeColor as keyof typeof THEME_COLOR_LABELS] ?? ft.themeColor}
+                      <div style={{ fontSize: "12px", color: "#9e8480", marginTop: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
+                        /admin/<strong>{ft.slug}</strong>
+                        <span style={{ display: "inline-block", width: "12px", height: "12px", borderRadius: "50%", background: c.main, border: `2px solid ${c.accent}`, verticalAlign: "middle" }} />
+                        <span style={{ display: "inline-block", width: "12px", height: "12px", borderRadius: "50%", background: c.accent, border: `2px solid ${c.border}`, verticalAlign: "middle" }} />
                       </div>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
-                    <button
-                      className="angelique-btn-outline"
-                      style={{ padding: "6px 14px", fontSize: "12px" }}
-                      onClick={() => navigate(`/admin/${ft.slug}`)}
-                    >
+                    <button className="angelique-btn-outline" style={{ padding: "6px 14px", fontSize: "12px" }} onClick={() => navigate(`/admin/${ft.slug}`)}>
                       管理画面へ
                     </button>
-                    <button
-                      className="angelique-btn-outline"
-                      style={{ padding: "6px 14px", fontSize: "12px" }}
-                      onClick={() => openEdit(ft as FortuneTeller)}
-                    >
+                    <button className="angelique-btn-outline" style={{ padding: "6px 14px", fontSize: "12px" }} onClick={() => openEdit(ft as FortuneTeller)}>
                       編集
                     </button>
                     <button
@@ -213,31 +267,30 @@ export default function SuperAdminDashboard() {
             <form onSubmit={handleCreate}>
               <div className="mb-4">
                 <label className="angelique-label">スラッグ（URLに使用）*</label>
-                <input type="text" className="angelique-input" value={createForm.slug} onChange={(e) => setCreateForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))} placeholder="例：hanako（英小文字・数字・ハイフンのみ）" required />
+                <input type="text" className="angelique-input"
+                  value={createForm.slug}
+                  onChange={(e) => setCreateForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
+                  placeholder="例：hanako（英小文字・数字・ハイフンのみ）" required />
                 {createForm.slug && <p style={{ fontSize: "11px", color: "#9e8480", marginTop: "4px" }}>管理URL: /admin/{createForm.slug}</p>}
               </div>
               <div className="mb-4">
                 <label className="angelique-label">ブランド名 *</label>
-                <input type="text" className="angelique-input" value={createForm.brandName} onChange={(e) => setCreateForm(f => ({ ...f, brandName: e.target.value }))} placeholder="例：花子占い" required />
+                <input type="text" className="angelique-input" value={createForm.brandName}
+                  onChange={(e) => setCreateForm(f => ({ ...f, brandName: e.target.value }))} placeholder="例：花子占い" required />
               </div>
               <div className="mb-4">
                 <label className="angelique-label">初期パスワード *</label>
-                <input type="password" className="angelique-input" value={createForm.password} onChange={(e) => setCreateForm(f => ({ ...f, password: e.target.value }))} placeholder="6文字以上" minLength={6} required />
+                <input type="password" className="angelique-input" value={createForm.password}
+                  onChange={(e) => setCreateForm(f => ({ ...f, password: e.target.value }))} placeholder="6文字以上" minLength={6} required />
               </div>
               <div className="mb-6">
                 <label className="angelique-label">テーマカラー</label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {THEME_COLOR_KEYS.map((key) => {
-                    const c = THEME_COLOR_MAP[key];
-                    const isSelected = createForm.themeColor === key;
-                    return (
-                      <label key={key} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: isSelected ? `2px solid ${c.accent}` : "1.5px solid #d4bfbb", background: isSelected ? c.main : "#fff", cursor: "pointer", fontSize: "12px" }}>
-                        <input type="radio" name="createTheme" value={key} checked={isSelected} onChange={() => setCreateForm(f => ({ ...f, themeColor: key }))} style={{ accentColor: c.accent }} />
-                        <div style={{ width: "14px", height: "14px", borderRadius: "50%", background: c.accent, flexShrink: 0 }} />
-                        <span style={{ color: c.text }}>{THEME_COLOR_LABELS[key]}</span>
-                      </label>
-                    );
-                  })}
+                <div className="mt-2">
+                  <ColorPickerInline
+                    main={createForm.themeColor} accent={createForm.accentColor}
+                    onChangeMain={(v) => setCreateForm(f => ({ ...f, themeColor: v }))}
+                    onChangeAccent={(v) => setCreateForm(f => ({ ...f, accentColor: v }))}
+                  />
                 </div>
               </div>
               <div className="flex gap-3">
@@ -259,30 +312,27 @@ export default function SuperAdminDashboard() {
             <form onSubmit={handleUpdate}>
               <div className="mb-4">
                 <label className="angelique-label">ブランド名</label>
-                <input type="text" className="angelique-input" value={editForm.brandName} onChange={(e) => setEditForm(f => ({ ...f, brandName: e.target.value }))} required />
+                <input type="text" className="angelique-input" value={editForm.brandName}
+                  onChange={(e) => setEditForm(f => ({ ...f, brandName: e.target.value }))} required />
               </div>
               <div className="mb-4">
                 <label className="angelique-label">テーマカラー</label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {THEME_COLOR_KEYS.map((key) => {
-                    const c = THEME_COLOR_MAP[key];
-                    const isSelected = editForm.themeColor === key;
-                    return (
-                      <label key={key} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: isSelected ? `2px solid ${c.accent}` : "1.5px solid #d4bfbb", background: isSelected ? c.main : "#fff", cursor: "pointer", fontSize: "12px" }}>
-                        <input type="radio" name="editTheme" value={key} checked={isSelected} onChange={() => setEditForm(f => ({ ...f, themeColor: key }))} style={{ accentColor: c.accent }} />
-                        <div style={{ width: "14px", height: "14px", borderRadius: "50%", background: c.accent, flexShrink: 0 }} />
-                        <span style={{ color: c.text }}>{THEME_COLOR_LABELS[key]}</span>
-                      </label>
-                    );
-                  })}
+                <div className="mt-2">
+                  <ColorPickerInline
+                    main={editForm.themeColor} accent={editForm.accentColor}
+                    onChangeMain={(v) => setEditForm(f => ({ ...f, themeColor: v }))}
+                    onChangeAccent={(v) => setEditForm(f => ({ ...f, accentColor: v }))}
+                  />
                 </div>
               </div>
               <div className="mb-4">
                 <label className="angelique-label">新しいパスワード（変更する場合のみ）</label>
-                <input type="password" className="angelique-input" value={editForm.newPassword} onChange={(e) => setEditForm(f => ({ ...f, newPassword: e.target.value }))} placeholder="6文字以上" minLength={6} />
+                <input type="password" className="angelique-input" value={editForm.newPassword}
+                  onChange={(e) => setEditForm(f => ({ ...f, newPassword: e.target.value }))} placeholder="6文字以上" minLength={6} />
               </div>
               <div className="mb-6 flex items-center gap-2">
-                <input type="checkbox" id="isActive" checked={editForm.isActive} onChange={(e) => setEditForm(f => ({ ...f, isActive: e.target.checked }))} style={{ accentColor: "#c9a8a3" }} />
+                <input type="checkbox" id="isActive" checked={editForm.isActive}
+                  onChange={(e) => setEditForm(f => ({ ...f, isActive: e.target.checked }))} />
                 <label htmlFor="isActive" style={{ fontSize: "13px", color: "#6b5b58", cursor: "pointer" }}>アカウントを有効にする</label>
               </div>
               <div className="flex gap-3">

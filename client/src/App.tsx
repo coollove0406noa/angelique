@@ -24,7 +24,8 @@ function AdminBrandWrapper({ children }: { children: React.ReactNode }) {
   return (
     <BrandProvider
       brandName={fortuneTeller?.brandName ?? "angelique"}
-      themeColor={fortuneTeller?.themeColor ?? "dusty-pink"}
+      themeColor={fortuneTeller?.themeColor ?? "#f3e7e5"}
+      accentColor={fortuneTeller?.accentColor ?? "#c9a8a3"}
     >
       {children}
     </BrandProvider>

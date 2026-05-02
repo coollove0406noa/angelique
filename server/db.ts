@@ -132,6 +132,7 @@ export async function createFortuneTeller(data: {
   brandName: string;
   passwordHash: string;
   themeColor?: string;
+  accentColor?: string;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -139,7 +140,8 @@ export async function createFortuneTeller(data: {
     slug: data.slug,
     brandName: data.brandName,
     passwordHash: data.passwordHash,
-    themeColor: data.themeColor ?? "dusty-pink",
+    themeColor: data.themeColor ?? "#f3e7e5",
+    accentColor: data.accentColor ?? "#c9a8a3",
     isActive: true,
   });
   return result[0].insertId as number;
@@ -153,6 +155,7 @@ export async function updateFortuneTeller(
     passwordHash: string;
     sessionToken: string | null;
     themeColor: string;
+    accentColor: string;
     isActive: boolean;
   }>
 ) {

@@ -44,12 +44,18 @@ export async function sendSessionInviteEmail({
   sessionUrl,
   scheduledAt,
   durationMinutes,
+  brandName = "angelique",
+  mainColor = "#f3e7e5",
+  accentColor = "#c9a8a3",
 }: {
   toEmail: string;
   toName: string;
   sessionUrl: string;
   scheduledAt: Date;
   durationMinutes: number;
+  brandName?: string;
+  mainColor?: string;
+  accentColor?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL || "noreply@noakayou.com";
@@ -76,23 +82,23 @@ export async function sendSessionInviteEmail({
 <head>
   <meta charset="UTF-8">
   <style>
-    body { font-family: 'Noto Sans JP', sans-serif; background: #f9f5f4; color: #6b5b58; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 20px; padding: 40px; box-shadow: 0 2px 12px rgba(107,91,88,0.08); }
-    .logo { font-family: 'Cormorant Garamond', serif; font-size: 28px; color: #c9a8a3; text-align: center; margin-bottom: 8px; }
+    body { font-family: 'Noto Sans JP', sans-serif; background: ${mainColor}; color: #4a3b38; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 20px; padding: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .logo { font-family: 'Cormorant Garamond', serif; font-size: 28px; color: ${accentColor}; text-align: center; margin-bottom: 8px; }
     .subtitle { text-align: center; color: #9e8480; font-size: 13px; margin-bottom: 32px; }
-    h2 { color: #6b5b58; font-size: 18px; }
-    .info-box { background: #f3e7e5; border-radius: 12px; padding: 20px; margin: 24px 0; }
+    h2 { color: #4a3b38; font-size: 18px; }
+    .info-box { background: ${mainColor}; border-radius: 12px; padding: 20px; margin: 24px 0; }
     .info-row { display: flex; margin-bottom: 8px; }
     .info-label { color: #9e8480; min-width: 120px; font-size: 14px; }
-    .info-value { color: #6b5b58; font-size: 14px; font-weight: 600; }
-    .btn { display: block; width: fit-content; margin: 32px auto; background: #c9a8a3; color: #fff; text-decoration: none; padding: 14px 40px; border-radius: 24px; font-size: 16px; font-weight: 600; }
-    .notice { background: #f9f5f4; border-radius: 12px; padding: 16px; font-size: 13px; color: #9e8480; margin-top: 24px; }
-    .footer { text-align: center; color: #d4bfbb; font-size: 12px; margin-top: 32px; }
+    .info-value { color: #4a3b38; font-size: 14px; font-weight: 600; }
+    .btn { display: block; width: fit-content; margin: 32px auto; background: ${accentColor}; color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 24px; font-size: 16px; font-weight: 600; }
+    .notice { background: ${mainColor}; border-radius: 12px; padding: 16px; font-size: 13px; color: #9e8480; margin-top: 24px; }
+    .footer { text-align: center; color: #bbb; font-size: 12px; margin-top: 32px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="logo">✦ angelique ✦</div>
+    <div class="logo">✦ ${brandName} ✦</div>
     <div class="subtitle">言葉にならない声を整える場所</div>
     <h2>${toName} 様</h2>
     <p>この度はご予約いただきありがとうございます。<br>以下の内容でオンラインセッションのご案内をお送りします。</p>
@@ -115,7 +121,7 @@ export async function sendSessionInviteEmail({
       ・通信環境の良い場所でご参加ください。<br>
       ・ご不明な点はお気軽にお問い合わせください。
     </div>
-    <div class="footer">angelique &copy; ${new Date().getFullYear()}</div>
+    <div class="footer">${brandName} &copy; ${new Date().getFullYear()}</div>
   </div>
 </body>
 </html>
@@ -123,8 +129,8 @@ export async function sendSessionInviteEmail({
 
   const message = {
     to: { email: toEmail, name: toName },
-    from: { email: fromEmail, name: "angelique" },
-    subject: `【angelique】セッションのご案内 - ${dateStr}`,
+    from: { email: fromEmail, name: brandName },
+    subject: `【${brandName}】セッションのご案内 - ${dateStr}`,
     html: htmlContent,
     text: `${toName}様\n\nセッションのご案内です。\n日時：${dateStr}\n時間：${durationMinutes}分\n\n参加URL：${sessionUrl}\n\n※URLは本人のみご利用ください。`,
   };

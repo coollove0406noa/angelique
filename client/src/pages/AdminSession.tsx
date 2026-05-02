@@ -8,6 +8,7 @@ import { MicTest } from "@/components/MicTest";
 import LinkifiedText from "@/components/LinkifiedText";
 import AdminLogin from "./AdminLogin";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
+import { useBrand } from "@/contexts/BrandContext";
 import { io, Socket } from "socket.io-client";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -53,6 +54,7 @@ export default function AdminSession() {
   const sessionId = Number(id);
   const [, navigate] = useLocation();
   const { isAuthenticated, isLoading, fortuneTeller, refetch: refetchAuth } = useAdminAuth();
+  const { colors } = useBrand();
 
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -505,8 +507,8 @@ export default function AdminSession() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#f9f5f4" }}>
-        <div style={{ color: "#9e8480" }}>読み込み中...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: colors.main }}>
+        <div style={{ color: colors.subText }}>読み込み中...</div>
       </div>
     );
   }
@@ -516,7 +518,7 @@ export default function AdminSession() {
   return (
     <div
       className={`min-h-screen flex flex-col ${screenFlash ? "screen-flash-anim" : ""}`}
-      style={{ background: "#f9f5f4" }}
+      style={{ background: colors.main }}
     >
       <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
 
@@ -528,8 +530,8 @@ export default function AdminSession() {
           left: 0,
           right: 0,
           zIndex: 45,
-          background: isWarning ? "#fff3e0" : "#f3e7e5",
-          borderBottom: "1px solid #d4bfbb",
+          background: isWarning ? "#fff3e0" : colors.main,
+          borderBottom: `1px solid ${colors.border}`,
           padding: "10px 16px",
           display: "flex",
           alignItems: "center",
@@ -541,14 +543,14 @@ export default function AdminSession() {
       >
         {/* タイマー表示 */}
         <div className="flex items-center gap-3">
-          <span style={{ fontSize: "12px", color: "#9e8480" }}>残り時間</span>
+          <span style={{ fontSize: "12px", color: colors.subText }}>残り時間</span>
           <span
             className={`timer-display ${isWarning && timerStatus === "active" ? "timer-flash warning" : ""} ${isEnded ? "ended" : ""}`}
             style={{ fontSize: "28px" }}
           >
             {timerStr}
           </span>
-          <span style={{ fontSize: "11px", color: "#9e8480" }}>
+          <span style={{ fontSize: "11px", color: colors.subText }}>
             {timerStatus === "active" && "進行中"}
             {timerStatus === "paused" && "⏸ 一時停止"}
             {timerStatus === "ended" && "時間終了"}
@@ -604,7 +606,7 @@ export default function AdminSession() {
                 padding: "8px 16px",
                 fontSize: "13px",
                 position: "relative",
-                background: clientOnline ? "#c9a8a3" : undefined,
+                background: clientOnline ? colors.accent : undefined,
                 opacity: clientOnline ? 1 : 0.5,
               }}
             >
@@ -659,10 +661,10 @@ export default function AdminSession() {
         {/* Session Info Bar */}
         <div className="angelique-card p-3 flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <div style={{ fontSize: "16px", fontWeight: 500, color: "#6b5b58" }}>
+            <div style={{ fontSize: "16px", fontWeight: 500, color: colors.text }}>
               {session?.clientName ?? "読み込み中..."}
             </div>
-            <div style={{ fontSize: "12px", color: "#9e8480" }}>
+            <div style={{ fontSize: "12px", color: colors.subText }}>
               {session && format(new Date(session.scheduledAt), "M/d (E) HH:mm", { locale: ja })} ·{" "}
               {session?.durationMinutes}分
               {(session?.carryoverMinutes ?? 0) > 0 && ` (+${session?.carryoverMinutes}分繰越)`}
@@ -733,7 +735,7 @@ export default function AdminSession() {
                 background: connected ? "#4caf50" : "#ccc",
               }}
             />
-            <span style={{ fontSize: "12px", color: "#9e8480" }}>
+            <span style={{ fontSize: "12px", color: colors.subText }}>
               {connected ? "接続中" : "切断"}
             </span>
           </div>
@@ -749,7 +751,7 @@ export default function AdminSession() {
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3" style={{ paddingTop: "80px" }}>
               {messages.length === 0 && (
                 <div className="flex-1 flex items-center justify-center">
-                  <p style={{ color: "#d4bfbb", fontSize: "14px" }}>
+                  <p style={{ color: colors.border, fontSize: "14px" }}>
                     チャットを開始してください
                   </p>
                 </div>
@@ -772,7 +774,7 @@ export default function AdminSession() {
                             <img
                               src={(msg as any).imageUrl}
                               alt="送信画像"
-                              style={{ maxWidth: "200px", borderRadius: "12px", cursor: "pointer", border: "1px solid #d4bfbb" }}
+                              style={{ maxWidth: "200px", borderRadius: "12px", cursor: "pointer", border: `1px solid ${colors.border}` }}
                               onClick={() => window.open((msg as any).imageUrl, "_blank")}
                             />
                           </div>
@@ -784,7 +786,7 @@ export default function AdminSession() {
                             <LinkifiedText text={msg.content} />
                           </div>
                         )}
-                        <div style={{ fontSize: "10px", color: "#d4bfbb", marginTop: "3px", textAlign: "right" }}>
+                        <div style={{ fontSize: "10px", color: colors.border, marginTop: "3px", textAlign: "right" }}>
                           {format(new Date(msg.createdAt), "HH:mm")}
                         </div>
                       </div>
@@ -792,7 +794,7 @@ export default function AdminSession() {
                   ) : (
                     /* お客様のメッセージ（左寄せ） */
                     <div style={{ display: "flex", justifyContent: "flex-start", flexDirection: "column", alignItems: "flex-start" }}>
-                      <div style={{ fontSize: "11px", color: "#9e8480", marginBottom: "3px", marginLeft: "4px" }}>
+                      <div style={{ fontSize: "11px", color: colors.subText, marginBottom: "3px", marginLeft: "4px" }}>
                         {session?.clientName}
                       </div>
                       {(msg as any).imageUrl ? (
@@ -800,7 +802,7 @@ export default function AdminSession() {
                           <img
                             src={(msg as any).imageUrl}
                             alt="送信画像"
-                            style={{ maxWidth: "200px", borderRadius: "12px", cursor: "pointer", border: "1px solid #d4bfbb" }}
+                            style={{ maxWidth: "200px", borderRadius: "12px", cursor: "pointer", border: `1px solid ${colors.border}` }}
                             onClick={() => window.open((msg as any).imageUrl, "_blank")}
                           />
                         </div>
@@ -812,7 +814,7 @@ export default function AdminSession() {
                           <LinkifiedText text={msg.content} />
                         </div>
                       )}
-                      <div style={{ fontSize: "10px", color: "#d4bfbb", marginTop: "3px", textAlign: "left" }}>
+                      <div style={{ fontSize: "10px", color: colors.border, marginTop: "3px", textAlign: "left" }}>
                         {format(new Date(msg.createdAt), "HH:mm")}
                       </div>
                     </div>
@@ -825,12 +827,12 @@ export default function AdminSession() {
             {/* スタンプパネル */}
             <div
               style={{
-                borderTop: "1px solid #f3e7e5",
+                borderTop: `1px solid ${colors.border}`,
                 padding: "8px 12px",
                 display: "flex",
                 gap: "6px",
                 flexWrap: "wrap",
-                background: "#fdfaf9",
+                background: colors.main,
               }}
             >
               {STAMPS.map((stamp) => (
@@ -838,22 +840,22 @@ export default function AdminSession() {
                   key={stamp.text}
                   onClick={() => handleSendStamp(stamp.text)}
                   style={{
-                    background: "#f3e7e5",
-                    border: "1px solid #d4bfbb",
+                    background: colors.main,
+                    border: `1px solid ${colors.border}`,
                     borderRadius: "20px",
                     padding: "4px 12px",
                     fontSize: "12px",
-                    color: "#6b5b58",
+                    color: colors.text,
                     cursor: "pointer",
                     whiteSpace: "nowrap",
                     transition: "all 0.15s",
                     fontFamily: "'Noto Sans JP', sans-serif",
                   }}
                   onMouseOver={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "#e8d5d0";
+                    (e.currentTarget as HTMLButtonElement).style.background = colors.border;
                   }}
                   onMouseOut={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "#f3e7e5";
+                    (e.currentTarget as HTMLButtonElement).style.background = colors.main;
                   }}
                   title={`ワンタップ送信: ${stamp.text}`}
                 >
@@ -865,7 +867,7 @@ export default function AdminSession() {
             {/* Input */}
             <div
               className="p-3 flex gap-2"
-              style={{ borderTop: "1px solid #f3e7e5" }}
+              style={{ borderTop: `1px solid ${colors.border}` }}
             >
               {/* 画像添付ボタン */}
               <input
@@ -880,12 +882,12 @@ export default function AdminSession() {
                 disabled={uploadingImage}
                 style={{
                   background: "transparent",
-                  border: "1px solid #d4bfbb",
+                  border: `1px solid ${colors.border}`,
                   borderRadius: "8px",
                   padding: "8px 10px",
                   fontSize: "18px",
                   cursor: "pointer",
-                  color: "#c9a8a3",
+                  color: colors.accent,
                   alignSelf: "flex-end",
                   opacity: uploadingImage ? 0.5 : 1,
                 }}
@@ -941,7 +943,7 @@ export default function AdminSession() {
 
             {/* Action Buttons */}
             <div className="angelique-card p-4 flex flex-col gap-2">
-              <div style={{ fontSize: "12px", color: "#9e8480", marginBottom: "4px", fontWeight: 500 }}>
+              <div style={{ fontSize: "12px", color: colors.subText, marginBottom: "4px", fontWeight: 500 }}>
                 セッション操作
               </div>
               <button
@@ -963,13 +965,13 @@ export default function AdminSession() {
             {/* Client URL */}
             {session && (
               <div className="angelique-card p-4">
-                <div style={{ fontSize: "12px", color: "#9e8480", marginBottom: "4px" }}>お客様URL</div>
+                <div style={{ fontSize: "12px", color: colors.subText, marginBottom: "4px" }}>お客様URL</div>
                 <div
                   style={{
                     fontSize: "11px",
-                    color: "#6b5b58",
+                    color: colors.text,
                     wordBreak: "break-all",
-                    background: "#f9f5f4",
+                    background: colors.main,
                     padding: "8px",
                     borderRadius: "8px",
                     marginBottom: "8px",
@@ -1005,13 +1007,13 @@ export default function AdminSession() {
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: "22px",
-                color: "#6b5b58",
+                color: colors.text,
                 marginBottom: "20px",
               }}
             >
               時間を延長する
             </h3>
-            <p style={{ fontSize: "13px", color: "#9e8480", marginBottom: "20px" }}>
+            <p style={{ fontSize: "13px", color: colors.subText, marginBottom: "20px" }}>
               延長URLをお客様のチャットに送信します
             </p>
             <div className="flex flex-col gap-3">
@@ -1068,7 +1070,7 @@ export default function AdminSession() {
             <button
               onClick={() => handleExtensionResume(extensionNotification.minutes)}
               style={{
-                background: "linear-gradient(135deg, #c9a8a3, #a87f7a)",
+                background: colors.accent,
                 color: "#fff",
                 border: "none",
                 borderRadius: "8px",
@@ -1085,8 +1087,8 @@ export default function AdminSession() {
               onClick={() => setExtensionNotification(null)}
               style={{
                 background: "transparent",
-                color: "#9e8480",
-                border: "1px solid #d4bfbb",
+                color: colors.subText,
+                border: `1px solid ${colors.border}`,
                 borderRadius: "8px",
                 padding: "10px 16px",
                 fontSize: "14px",
@@ -1111,13 +1113,13 @@ export default function AdminSession() {
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
                 fontSize: "22px",
-                color: "#6b5b58",
+                color: colors.text,
                 marginBottom: "8px",
               }}
             >
               次回に繰り越す
             </h3>
-            <p style={{ fontSize: "13px", color: "#9e8480", marginBottom: "20px" }}>
+            <p style={{ fontSize: "13px", color: colors.subText, marginBottom: "20px" }}>
               現在の残り時間: {timerMins}分{timerSecs}秒
             </p>
             <div className="mb-6">
@@ -1131,7 +1133,7 @@ export default function AdminSession() {
                 min={1}
                 autoFocus
               />
-              <p style={{ fontSize: "11px", color: "#9e8480", marginTop: "6px" }}>
+              <p style={{ fontSize: "11px", color: colors.subText, marginTop: "6px" }}>
                 ※ 次回セッション作成時に自動加算されます
               </p>
             </div>

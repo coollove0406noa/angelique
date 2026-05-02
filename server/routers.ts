@@ -91,6 +91,7 @@ const adminRouter = router({
         slug: ft.slug,
         brandName: ft.brandName,
         themeColor: ft.themeColor,
+        accentColor: ft.accentColor,
       };
     }),
 
@@ -121,6 +122,7 @@ const adminRouter = router({
       slug: ft.slug,
       brandName: ft.brandName,
       themeColor: ft.themeColor,
+      accentColor: ft.accentColor,
     };
   }),
 
@@ -152,6 +154,7 @@ const adminRouter = router({
       slug: z.string(),
       brandName: z.string().min(1).optional(),
       themeColor: z.string().optional(),
+      accentColor: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const cookieHeader = ctx.req.headers.cookie || "";
@@ -163,6 +166,7 @@ const adminRouter = router({
       const updateData: Parameters<typeof updateFortuneTeller>[1] = {};
       if (input.brandName !== undefined) updateData.brandName = input.brandName;
       if (input.themeColor !== undefined) updateData.themeColor = input.themeColor;
+      if (input.accentColor !== undefined) updateData.accentColor = input.accentColor;
       await updateFortuneTeller(ft.id, updateData);
       return { success: true };
     }),
@@ -233,7 +237,8 @@ const superAdminRouter = router({
         slug: z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, "英小文字・数字・ハイフンのみ使用可能"),
         brandName: z.string().min(1).max(100),
         password: z.string().min(6),
-        themeColor: z.string().default("dusty-pink"),
+        themeColor: z.string().default("#f3e7e5"),
+        accentColor: z.string().default("#c9a8a3"),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -256,6 +261,7 @@ const superAdminRouter = router({
         brandName: input.brandName,
         passwordHash,
         themeColor: input.themeColor,
+        accentColor: input.accentColor,
       });
       return { id, slug: input.slug };
     }),
@@ -266,6 +272,7 @@ const superAdminRouter = router({
         id: z.number(),
         brandName: z.string().min(1).max(100).optional(),
         themeColor: z.string().optional(),
+        accentColor: z.string().optional(),
         isActive: z.boolean().optional(),
         newPassword: z.string().min(6).optional(),
       })
@@ -281,6 +288,7 @@ const superAdminRouter = router({
       const updateData: Parameters<typeof updateFortuneTeller>[1] = {};
       if (input.brandName !== undefined) updateData.brandName = input.brandName;
       if (input.themeColor !== undefined) updateData.themeColor = input.themeColor;
+      if (input.accentColor !== undefined) updateData.accentColor = input.accentColor;
       if (input.isActive !== undefined) updateData.isActive = input.isActive;
       if (input.newPassword) {
         updateData.passwordHash = await bcrypt.hash(input.newPassword, 12);
@@ -323,6 +331,7 @@ const fortuneTellerRouter = router({
         id: ft.id,
         brandName: ft.brandName,
         themeColor: ft.themeColor,
+        accentColor: ft.accentColor,
       };
     }),
 });
@@ -455,7 +464,10 @@ const sessionsRouter = router({
       // Send email
       let emailResult: { success: boolean; error?: string } = { success: false, error: "skipped" };
       if (input.sendEmail) {
-        const client = await getClientById(input.clientId);
+        const [client, ft] = await Promise.all([
+          getClientById(input.clientId),
+          getFortuneTellerById(input.fortuneTellerId),
+        ]);
         if (client) {
           const origin = input.origin || "https://angeliqueapp-b6ezj6ne.manus.space";
           const sessionUrl = `${origin}/session/${token}`;
@@ -466,6 +478,9 @@ const sessionsRouter = router({
             sessionUrl,
             scheduledAt: new Date(input.scheduledAt),
             durationMinutes: input.durationMinutes + totalCarryover,
+            brandName: ft?.brandName ?? "angelique",
+            mainColor: ft?.themeColor ?? "#f3e7e5",
+            accentColor: ft?.accentColor ?? "#c9a8a3",
           });
           if (emailResult.success) {
             console.log(`[Mailer] Email sent successfully to ${client.email}`);
@@ -699,7 +714,10 @@ const emailRouter = router({
     .mutation(async ({ input }) => {
       const session = await getSessionById(input.sessionId);
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
-      const client = await getClientById(session.clientId);
+      const [client, ft] = await Promise.all([
+        getClientById(session.clientId),
+        getFortuneTellerById(session.fortuneTellerId),
+      ]);
       if (!client) throw new TRPCError({ code: "NOT_FOUND" });
       const origin = input.origin || "https://angeliqueapp-b6ezj6ne.manus.space";
       const sessionUrl = `${origin}/session/${session.clientToken}`;
@@ -710,6 +728,9 @@ const emailRouter = router({
         sessionUrl,
         scheduledAt: session.scheduledAt,
         durationMinutes: session.durationMinutes + session.carryoverMinutes,
+        brandName: ft?.brandName ?? "angelique",
+        mainColor: ft?.themeColor ?? "#f3e7e5",
+        accentColor: ft?.accentColor ?? "#c9a8a3",
       });
       return result;
     }),
