@@ -372,9 +372,9 @@ function SessionCard({
               fontWeight: 500,
             }}
           >
-            {session.sessionType === "voice" ? "🎙 音声"
-             : session.sessionType === "video" ? "📹 ビデオ"
-             : "💬 チャット"}
+            {session.sessionType === "voice" ? "音声"
+             : session.sessionType === "video" ? "ビデオ"
+             : "チャット"}
           </span>
         </div>
         <div style={{ fontSize: "13px", color: colors.subText }}>

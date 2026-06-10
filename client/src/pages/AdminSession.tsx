@@ -745,7 +745,19 @@ export default function AdminSession() {
         </div>
 
         <div className="flex gap-4 flex-1" style={{ minHeight: 0 }}>
-          {/* Chat Area */}
+          {/* Left Main Area: VideoCall (video sessions) or Chat (others) */}
+          {session?.sessionType === "video" ? (
+            <div
+              className="angelique-card p-4 flex-1"
+              style={{ minHeight: "500px" }}
+            >
+              <VideoCall
+                sessionId={sessionId}
+                role="admin"
+                isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+              />
+            </div>
+          ) : (
           <div
             className="angelique-card flex flex-col flex-1"
             style={{ minHeight: 0, height: "calc(100vh - 320px)" }}
@@ -923,6 +935,7 @@ export default function AdminSession() {
               </button>
             </div>
           </div>
+          )}
 
           {/* Right Panel: Controls */}
           <div className="flex flex-col gap-4" style={{ width: "260px", minWidth: "260px" }}>
@@ -937,15 +950,6 @@ export default function AdminSession() {
                   preConnect={true}
                 />
               </>
-            )}
-
-            {/* Video Call Panel (video sessions only) */}
-            {session?.sessionType === "video" && (
-              <VideoCall
-                sessionId={sessionId}
-                role="admin"
-                isSessionActive={timerStatus === "active" || timerStatus === "paused"}
-              />
             )}
 
             {/* Extension Notification */}
