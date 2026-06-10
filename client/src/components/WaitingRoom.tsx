@@ -191,52 +191,56 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
     };
   }, []);
 
-  // ── マイクテスト（音声鑑定のみ）────────────────────────────────────────
-  const [micStatus, setMicStatus] = useState<"idle" | "testing" | "ok" | "denied" | "notfound" | "error">("idle");
+  // ── マイクテスト（音声・ビデオ鑑定用・リアルタイムレベルメーター）───────
+  const [micStatus, setMicStatus] = useState<"idle" | "testing" | "denied" | "notfound" | "error">("idle");
   const [micVolume, setMicVolume] = useState(0);
-  // ループバックテスト用
-  const [loopbackActive, setLoopbackActive] = useState(false);
-  const [loopbackCountdown, setLoopbackCountdown] = useState(5);
-  const micStreamRef   = useRef<MediaStream | null>(null);
-  const analyserRef    = useRef<AnalyserNode | null>(null);
-  const animFrameRef   = useRef<number | null>(null);
-  const loopCtxRef     = useRef<AudioContext | null>(null);
-  const loopStreamRef  = useRef<MediaStream | null>(null);
-  const loopTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const micStreamRef    = useRef<MediaStream | null>(null);
+  const analyserRef     = useRef<AnalyserNode | null>(null);
+  const animFrameRef    = useRef<number | null>(null);
+  const micAudioCtxRef  = useRef<AudioContext | null>(null);
 
+  // テスト停止・マイク解放
+  const stopMicTest = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    micAudioCtxRef.current?.close().catch(() => {});
+    micAudioCtxRef.current = null;
+    analyserRef.current = null;
+    setMicVolume(0);
+    setMicStatus("idle");
+  }, []);
+
+  // テスト開始：「テスト終了」ボタンが押されるまで連続計測
   const startMicTest = useCallback(async () => {
     setMicStatus("testing");
+    setMicVolume(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       micStreamRef.current = stream;
 
       const audioCtx = new AudioContext();
+      micAudioCtxRef.current = audioCtx;
       const source   = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8; // なめらかなアニメーション
       source.connect(analyser);
+      // ⚠️ audioCtx.destination には接続しない（ハウリング防止）
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let maxVol = 0;
-      let frames = 0;
 
       const measure = () => {
+        if (!analyserRef.current) return;
         analyser.getByteFrequencyData(dataArray);
         const avg        = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-        const normalized = Math.min(100, (avg / 128) * 100);
+        const normalized = Math.min(100, (avg / 128) * 200); // 感度2倍
         setMicVolume(normalized);
-        if (normalized > maxVol) maxVol = normalized;
-        frames++;
-
-        if (frames < 120) {
-          animFrameRef.current = requestAnimationFrame(measure);
-        } else {
-          setMicStatus(maxVol > 2 ? "ok" : "error");
-          setMicVolume(0);
-          stream.getTracks().forEach((t) => t.stop());
-          audioCtx.close();
-        }
+        animFrameRef.current = requestAnimationFrame(measure);
       };
       animFrameRef.current = requestAnimationFrame(measure);
     } catch (err: unknown) {
@@ -251,55 +255,13 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
     }
   }, []);
 
-  // ループバックテスト（自分の声を聞く・5秒）
-  const startLoopbackTest = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      loopStreamRef.current = stream;
-      const audioCtx = new AudioContext();
-      loopCtxRef.current = audioCtx;
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(audioCtx.destination);
-
-      setLoopbackActive(true);
-      setLoopbackCountdown(5);
-      let count = 5;
-      loopTimerRef.current = setInterval(() => {
-        count -= 1;
-        setLoopbackCountdown(count);
-        if (count <= 0) {
-          clearInterval(loopTimerRef.current!);
-          loopTimerRef.current = null;
-          loopStreamRef.current?.getTracks().forEach((t) => t.stop());
-          loopCtxRef.current?.close().catch(() => {});
-          loopStreamRef.current = null;
-          loopCtxRef.current = null;
-          setLoopbackActive(false);
-          setLoopbackCountdown(5);
-        }
-      }, 1000);
-    } catch {
-      setMicStatus("denied");
-    }
-  }, []);
-
-  const stopLoopback = useCallback(() => {
-    if (loopTimerRef.current) { clearInterval(loopTimerRef.current); loopTimerRef.current = null; }
-    loopStreamRef.current?.getTracks().forEach((t) => t.stop());
-    loopCtxRef.current?.close().catch(() => {});
-    loopStreamRef.current = null;
-    loopCtxRef.current = null;
-    setLoopbackActive(false);
-    setLoopbackCountdown(5);
-  }, []);
-
   useEffect(() => {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      stopLoopback();
+      micAudioCtxRef.current?.close().catch(() => {});
     };
-  }, [stopLoopback]);
+  }, []);
 
   // ── レンダリング ──────────────────────────────────────────────────────
   return (
@@ -366,24 +328,23 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           <div className="wr-mic-panel">
             <div className="wr-mic-title">🎤 マイクテスト</div>
 
-            {/* 音量チェック */}
+            {/* 待機中 */}
             {micStatus === "idle" && (
               <button onClick={startMicTest} className="wr-mic-btn">
                 マイクをテストする
               </button>
             )}
+
+            {/* テスト中：リアルタイムレベルメーター */}
             {micStatus === "testing" && (
               <div className="wr-mic-testing">
                 <div className="wr-vol-bar">
                   <div className="wr-vol-fill" style={{ width: `${micVolume}%` }} />
                 </div>
-                <p className="wr-mic-sub">マイクの音量を測定中... 声を出してみてください</p>
-              </div>
-            )}
-            {micStatus === "ok" && (
-              <div className="wr-mic-ok">
-                <span className="wr-mic-ok-icon">✓</span>
-                <span>マイクが正常に動作しています</span>
+                <p className="wr-mic-sub">🎤 声を出すと棒が伸びます</p>
+                <button onClick={stopMicTest} className="wr-mic-stop-btn">
+                  テスト終了
+                </button>
               </div>
             )}
 
@@ -408,22 +369,9 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
             )}
             {micStatus === "error" && (
               <div className="wr-mic-error">
-                <p>⚠ マイクが検出できませんでした</p>
-                <p className="wr-mic-sub">声を出しながらテストしてください</p>
+                <p>⚠ マイクへのアクセスに失敗しました</p>
+                <p className="wr-mic-sub">ブラウザのマイク許可設定を確認してください</p>
                 <button onClick={startMicTest} className="wr-mic-retry">再試行</button>
-              </div>
-            )}
-
-            {/* ループバック（自分の声を聞く）ボタン */}
-            {(micStatus === "ok" || micStatus === "idle") && !loopbackActive && (
-              <button onClick={startLoopbackTest} className="wr-mic-loopback-btn">
-                🔊 声を聞いてみる（5秒）
-              </button>
-            )}
-            {loopbackActive && (
-              <div className="wr-mic-loopback-active">
-                <span>🎧 聞こえますか？ {loopbackCountdown}秒後に停止</span>
-                <button onClick={stopLoopback} className="wr-mic-retry">停止</button>
               </div>
             )}
           </div>
@@ -581,46 +529,39 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 0.4rem;
+          gap: 0.6rem;
         }
         .wr-vol-bar {
           width: 100%;
-          height: 7px;
+          height: 14px;
           background: rgba(255,255,255,0.1);
-          border-radius: 4px;
+          border-radius: 7px;
           overflow: hidden;
         }
         .wr-vol-fill {
           height: 100%;
-          background: linear-gradient(90deg, #c9a8a3, #e8d5d0);
-          border-radius: 4px;
-          transition: width 0.1s ease;
+          background: linear-gradient(90deg, #c9a8a3 0%, #e8d5d0 60%, #ffe0a0 100%);
+          border-radius: 7px;
+          transition: width 0.08s ease;
         }
         .wr-mic-sub {
           color: #c9a8a3;
           font-size: 0.75rem;
           font-family: 'Noto Sans JP', sans-serif;
+          margin: 0;
         }
-        .wr-mic-ok {
-          display: flex;
-          align-items: center;
-          gap: 0.45rem;
-          color: #a8d5b5;
+        .wr-mic-stop-btn {
+          background: rgba(232,168,163,0.18);
+          border: 1px solid rgba(232,168,163,0.5);
+          color: #e8d5d0;
+          border-radius: 0.5rem;
+          padding: 0.4rem 1.2rem;
           font-size: 0.82rem;
+          cursor: pointer;
+          transition: background 0.2s;
           font-family: 'Noto Sans JP', sans-serif;
         }
-        .wr-mic-ok-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 18px;
-          height: 18px;
-          background: #a8d5b5;
-          color: #1a2e1f;
-          border-radius: 50%;
-          font-size: 0.65rem;
-          font-weight: bold;
-        }
+        .wr-mic-stop-btn:hover { background: rgba(232,168,163,0.32); }
         .wr-mic-error {
           display: flex;
           flex-direction: column;
@@ -667,38 +608,6 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           padding-left: 1.2rem;
           margin: 0;
           text-align: left;
-        }
-        .wr-mic-sub {
-          color: #9e8480;
-          font-size: 0.74rem;
-          font-family: 'Noto Sans JP', sans-serif;
-          margin: 0;
-        }
-        /* ループバックテスト */
-        .wr-mic-loopback-btn {
-          background: rgba(100,180,150,0.15);
-          border: 1px solid rgba(100,180,150,0.4);
-          color: #a8e0c9;
-          border-radius: 0.5rem;
-          padding: 0.3rem 0.8rem;
-          font-size: 0.75rem;
-          cursor: pointer;
-          font-family: 'Noto Sans JP', sans-serif;
-          margin-top: 0.25rem;
-        }
-        .wr-mic-loopback-btn:hover { background: rgba(100,180,150,0.25); }
-        .wr-mic-loopback-active {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          background: rgba(100,180,150,0.1);
-          border: 1px solid rgba(100,180,150,0.3);
-          border-radius: 0.5rem;
-          padding: 0.4rem 0.75rem;
-          font-size: 0.78rem;
-          color: #a8e0c9;
-          font-family: 'Noto Sans JP', sans-serif;
-          margin-top: 0.25rem;
         }
         /* スマホ対応 */
         @media (max-width: 420px) {

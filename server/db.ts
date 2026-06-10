@@ -371,7 +371,7 @@ export async function createSession(data: {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes?: number;
-  sessionType?: "chat" | "voice";
+  sessionType?: "chat" | "voice" | "video";
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");

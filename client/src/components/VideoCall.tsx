@@ -460,6 +460,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
             position: "relative",
             width: "100%",
             aspectRatio: "16 / 9",
+            minHeight: "400px",
             background: "#111",
             borderRadius: "10px",
             overflow: "hidden",
@@ -471,6 +472,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
           {remoteHasVideo ? (
             <div
               ref={remoteVideoCallbackRef}
+              className="vc-remote-video"
               style={{ width: "100%", height: "100%" }}
             />
           ) : (
@@ -513,6 +515,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
             {!isCameraOff ? (
               <div
                 ref={localPipCallbackRef}
+                className="vc-pip-video"
                 style={{ width: "100%", height: "100%" }}
               />
             ) : (
@@ -748,6 +751,22 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
           小さい映像（右下）はドラッグで移動できます
         </p>
       )}
+
+      {/* Agora が注入する <video> に object-fit: cover を適用 */}
+      <style>{`
+        .vc-remote-video video,
+        .vc-remote-video > div {
+          object-fit: cover !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .vc-pip-video video,
+        .vc-pip-video > div {
+          object-fit: cover !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+      `}</style>
     </div>
   );
 }
