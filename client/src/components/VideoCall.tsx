@@ -456,11 +456,11 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
       {/* ── カメラ映像エリア（接続後に表示）──────────────────────── */}
       {isConnected && (
         <div
+          className="vc-video-area"
           style={{
             position: "relative",
             width: "100%",
             aspectRatio: "16 / 9",
-            minHeight: "400px",
             background: "#111",
             borderRadius: "10px",
             overflow: "hidden",
@@ -752,8 +752,14 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
         </p>
       )}
 
-      {/* Agora が注入する <video> に object-fit: cover を適用 */}
+      {/* Agora が注入する <video> に object-fit: cover を適用 + レスポンシブ min-height */}
       <style>{`
+        /* PC のみ min-height を設定（スマホでは aspect-ratio: 16/9 のみ使用） */
+        @media (min-width: 768px) {
+          .vc-video-area {
+            min-height: 400px;
+          }
+        }
         .vc-remote-video video,
         .vc-remote-video > div {
           object-fit: cover !important;

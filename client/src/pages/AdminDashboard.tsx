@@ -18,7 +18,7 @@ type Session = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
-  sessionType: "chat" | "voice";
+  sessionType: "chat" | "voice" | "video";
   status: string;
   startedAt: Date | null;
   remainingSeconds: number | null;
@@ -357,13 +357,24 @@ function SessionCard({
               fontSize: "11px",
               padding: "2px 8px",
               borderRadius: "8px",
-              background: session.sessionType === "voice" ? "#e8f5e9" : colors.main,
-              color: session.sessionType === "voice" ? "#2e7d32" : colors.subText,
-              border: session.sessionType === "voice" ? "1px solid #a5d6a7" : `1px solid ${colors.border}`,
+              background:
+                session.sessionType === "voice" ? "#e8f5e9"
+                : session.sessionType === "video" ? "#e3f2fd"
+                : colors.main,
+              color:
+                session.sessionType === "voice" ? "#2e7d32"
+                : session.sessionType === "video" ? "#1565c0"
+                : colors.subText,
+              border:
+                session.sessionType === "voice" ? "1px solid #a5d6a7"
+                : session.sessionType === "video" ? "1px solid #90caf9"
+                : `1px solid ${colors.border}`,
               fontWeight: 500,
             }}
           >
-            {session.sessionType === "voice" ? "🎙 音声" : "💬 チャット"}
+            {session.sessionType === "voice" ? "🎙 音声"
+             : session.sessionType === "video" ? "📹 ビデオ"
+             : "💬 チャット"}
           </span>
         </div>
         <div style={{ fontSize: "13px", color: colors.subText }}>
