@@ -1,37 +1,4 @@
-import sgMail from "@sendgrid/mail";
-
-// SendGrid の ResponseError 型（@sendgrid/helpers/classes/response-error）
-interface SendGridResponseError extends Error {
-  code?: number;
-  response?: {
-    headers?: Record<string, string>;
-    body?: {
-      errors?: Array<{ message: string; field?: string | null; help?: string | null }>;
-    };
-    statusCode?: number;
-  };
-}
-
-/**
- * SendGrid エラーオブジェクトから詳細メッセージを生成する。
- * response.body.errors が存在する場合はその内容を優先して返す。
- */
-function extractSendGridError(err: unknown): string {
-  const sgErr = err as SendGridResponseError;
-  const statusCode = sgErr.response?.statusCode ?? sgErr.code;
-  const bodyErrors = sgErr.response?.body?.errors;
-
-  if (bodyErrors && bodyErrors.length > 0) {
-    const details = bodyErrors.map((e) => e.message).join("; ");
-    return `[HTTP ${statusCode ?? "?"}] ${details}`;
-  }
-
-  const baseMsg = sgErr.message ?? String(err);
-  if (statusCode) {
-    return `[HTTP ${statusCode}] ${baseMsg}`;
-  }
-  return baseMsg;
-}
+import { Resend } from "resend";
 
 /** 指定ミリ秒待機するユーティリティ */
 function sleep(ms: number): Promise<void> {
@@ -57,15 +24,15 @@ export async function sendSessionInviteEmail({
   mainColor?: string;
   accentColor?: string;
 }): Promise<{ success: boolean; error?: string }> {
-  const apiKey = process.env.SENDGRID_API_KEY;
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL || "noreply@noakayou.com";
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromEmail = "info@noakayou.com";
 
   if (!apiKey) {
-    console.warn("[Mailer] SENDGRID_API_KEY not set, skipping email send");
-    return { success: false, error: "SENDGRID_API_KEY not configured" };
+    console.warn("[Mailer] RESEND_API_KEY not set, skipping email send");
+    return { success: false, error: "RESEND_API_KEY not configured" };
   }
 
-  sgMail.setApiKey(apiKey);
+  const resend = new Resend(apiKey);
 
   const dateStr = scheduledAt.toLocaleString("ja-JP", {
     timeZone: "Asia/Tokyo",
@@ -127,49 +94,48 @@ export async function sendSessionInviteEmail({
 </html>
 `;
 
-  const message = {
-    to: { email: toEmail, name: toName },
-    from: { email: fromEmail, name: brandName },
-    subject: `【${brandName}】セッションのご案内 - ${dateStr}`,
-    html: htmlContent,
-    text: `${toName}様\n\nセッションのご案内です。\n日時：${dateStr}\n時間：${durationMinutes}分\n\n参加URL：${sessionUrl}\n\n※URLは本人のみご利用ください。`,
-  };
-
   // 最大3回試行（初回 + リトライ2回）
-  // 429（Rate exceeded）の場合は少し待ってリトライする
   const MAX_ATTEMPTS = 3;
-  const RETRY_DELAY_MS = 2000; // 2秒待機
+  const RETRY_DELAY_MS = 2000;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      await sgMail.send(message);
+      const { error } = await resend.emails.send({
+        from: `${brandName} <${fromEmail}>`,
+        to: [toEmail],
+        subject: `【${brandName}】セッションのご案内 - ${dateStr}`,
+        html: htmlContent,
+        text: `${toName}様\n\nセッションのご案内です。\n日時：${dateStr}\n時間：${durationMinutes}分\n\n参加URL：${sessionUrl}\n\n※URLは本人のみご利用ください。`,
+      });
+
+      if (error) {
+        const errorMsg = `[Resend] ${error.name}: ${error.message}`;
+        console.error(`[Mailer] Resend error (attempt ${attempt}/${MAX_ATTEMPTS}):`, errorMsg);
+
+        // 429 Rate limit → リトライ
+        if (error.name === "rate_limit_exceeded" && attempt < MAX_ATTEMPTS) {
+          console.warn(`[Mailer] Rate limited. Retrying in ${RETRY_DELAY_MS}ms...`);
+          await sleep(RETRY_DELAY_MS);
+          continue;
+        }
+
+        return { success: false, error: errorMsg };
+      }
+
       console.log(`[Mailer] Email sent successfully to ${toEmail} (attempt ${attempt})`);
       return { success: true };
     } catch (err: unknown) {
-      const sgErr = err as SendGridResponseError;
-      const statusCode = sgErr.response?.statusCode ?? sgErr.code;
-      const errorMsg = extractSendGridError(err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[Mailer] Unexpected error (attempt ${attempt}/${MAX_ATTEMPTS}):`, errorMsg);
 
-      // 詳細ログ出力
-      console.error(`[Mailer] SendGrid error (attempt ${attempt}/${MAX_ATTEMPTS}):`, errorMsg);
-
-      // response.body 全体もログ出力（デバッグ用）
-      if (sgErr.response?.body) {
-        console.error("[Mailer] SendGrid response body:", JSON.stringify(sgErr.response.body));
-      }
-
-      // 429 Rate exceeded → リトライ
-      if (statusCode === 429 && attempt < MAX_ATTEMPTS) {
-        console.warn(`[Mailer] Rate limited (429). Retrying in ${RETRY_DELAY_MS}ms...`);
+      if (attempt < MAX_ATTEMPTS) {
         await sleep(RETRY_DELAY_MS);
         continue;
       }
 
-      // それ以外のエラー、またはリトライ上限に達した場合は失敗を返す
       return { success: false, error: errorMsg };
     }
   }
 
-  // ここには到達しないが TypeScript のために
   return { success: false, error: "Max retry attempts exceeded" };
 }
