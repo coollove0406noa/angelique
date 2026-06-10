@@ -27,7 +27,7 @@ type Session = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
-  sessionType: "chat" | "voice";
+  sessionType: "chat" | "voice" | "video";
   status: string;
   clientName: string | null;
   clientEmail: string | null;
@@ -114,7 +114,7 @@ export default function AdminBookings() {
     scheduledAt: "",
     durationMinutes: "60",
     carryoverMinutes: "0",
-    sessionType: "chat" as "chat" | "voice",
+    sessionType: "chat" as "chat" | "voice" | "video",
     sendEmail: true,
   });
 
@@ -287,9 +287,13 @@ export default function AdminBookings() {
                     <div className="mb-4">
                       <label className="angelique-label">鑑定方法</label>
                       <div className="flex gap-3 mt-1">
-                        {[{ val: "chat", label: "💬 チャット鑑定" }, { val: "voice", label: "🎙 音声鑑定" }].map((opt) => (
+                        {[
+                          { val: "chat", label: "💬 チャット鑑定" },
+                          { val: "voice", label: "🎙 音声鑑定" },
+                          { val: "video", label: "📹 ビデオ鑑定" },
+                        ].map((opt) => (
                           <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", borderRadius: "12px", border: sessionForm.sessionType === opt.val ? `2px solid ${colors.accent}` : `1.5px solid ${colors.border}`, background: sessionForm.sessionType === opt.val ? colors.main : "#f9f5f4", cursor: "pointer", fontSize: "13px", color: colors.text, fontWeight: sessionForm.sessionType === opt.val ? 600 : 400 }}>
-                            <input type="radio" name="sessionType" value={opt.val} checked={sessionForm.sessionType === opt.val} onChange={() => setSessionForm(f => ({ ...f, sessionType: opt.val as "chat" | "voice" }))} style={{ accentColor: colors.accent }} />
+                            <input type="radio" name="sessionType" value={opt.val} checked={sessionForm.sessionType === opt.val} onChange={() => setSessionForm(f => ({ ...f, sessionType: opt.val as "chat" | "voice" | "video" }))} style={{ accentColor: colors.accent }} />
                             {opt.label}
                           </label>
                         ))}
@@ -316,7 +320,7 @@ export default function AdminBookings() {
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ background: colors.main, borderBottom: `1px solid ${colors.border}` }}>
-                        {["お客様", "日時", "時間", "ステータス", "操作"].map((h) => (
+                        {["お客様", "日時", "時間", "方法", "ステータス", "操作"].map((h) => (
                           <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", color: colors.subText, fontWeight: 500 }}>{h}</th>
                         ))}
                       </tr>
@@ -331,6 +335,9 @@ export default function AdminBookings() {
                           <td style={{ padding: "14px 16px", fontSize: "13px", color: colors.text }}>{formatDate(s.scheduledAt)}</td>
                           <td style={{ padding: "14px 16px", fontSize: "13px", color: colors.text }}>
                             {s.durationMinutes}分{s.carryoverMinutes > 0 && <span style={{ fontSize: "11px", color: colors.accent, marginLeft: "4px" }}>+{s.carryoverMinutes}分繰越</span>}
+                          </td>
+                          <td style={{ padding: "14px 16px", fontSize: "12px", color: colors.subText }}>
+                            {s.sessionType === "voice" ? "🎙 音声" : s.sessionType === "video" ? "📹 ビデオ" : "💬 チャット"}
                           </td>
                           <td style={{ padding: "14px 16px" }}><StatusBadge status={s.status} /></td>
                           <td style={{ padding: "14px 16px" }}>

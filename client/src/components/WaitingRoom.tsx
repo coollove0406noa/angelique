@@ -46,7 +46,7 @@ function shuffleIndices(len: number): number[] {
 }
 
 interface WaitingRoomProps {
-  sessionType: "chat" | "voice";
+  sessionType: "chat" | "voice" | "video";
   onSessionStarted?: () => void;
 }
 
@@ -361,8 +361,8 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           {bgmEnabled ? "🔊 BGM ON" : "🔇 BGM OFF"}
         </button>
 
-        {/* 音声鑑定のみ：マイクテスト */}
-        {sessionType === "voice" && (
+        {/* 音声・ビデオ鑑定のみ：マイクテスト */}
+        {(sessionType === "voice" || sessionType === "video") && (
           <div className="wr-mic-panel">
             <div className="wr-mic-title">🎤 マイクテスト</div>
 

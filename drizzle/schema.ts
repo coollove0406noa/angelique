@@ -98,7 +98,7 @@ export const sessions = mysqlTable("sessions", {
   scheduledAt: timestamp("scheduledAt").notNull(),
   durationMinutes: int("durationMinutes").notNull(),
   carryoverMinutes: int("carryoverMinutes").notNull().default(0),
-  sessionType: mysqlEnum("sessionType", ["chat", "voice"])
+  sessionType: mysqlEnum("sessionType", ["chat", "voice", "video"])
     .default("chat")
     .notNull(),
   status: mysqlEnum("status", [

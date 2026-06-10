@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
 import VoiceCall from "@/components/VoiceCall";
+import VideoCall from "@/components/VideoCall";
 import { MicTest } from "@/components/MicTest";
 import LinkifiedText from "@/components/LinkifiedText";
 import AdminLogin from "./AdminLogin";
@@ -37,7 +38,7 @@ type Session = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
-  sessionType: "chat" | "voice";
+  sessionType: "chat" | "voice" | "video";
   status: string;
   startedAt: Date | null;
   endedAt: Date | null;
@@ -446,8 +447,8 @@ export default function AdminSession() {
     const settings = storeSettings ?? [];
     const sType = session?.sessionType ?? "chat";
     const keyMap: Record<number, string> = {
-      10: sType === "voice" ? "stores_url_voice_10min" : "stores_url_chat_10min",
-      30: sType === "voice" ? "stores_url_voice_30min" : "stores_url_chat_30min",
+      10: sType === "voice" || sType === "video" ? "stores_url_voice_10min" : "stores_url_chat_10min",
+      30: sType === "voice" || sType === "video" ? "stores_url_voice_30min" : "stores_url_chat_30min",
     };
     const fallbackKey: Record<number, string> = { 10: "stores_url_10min", 30: "stores_url_30min" };
     const url =
@@ -668,6 +669,8 @@ export default function AdminSession() {
               {session && format(new Date(session.scheduledAt), "M/d (E) HH:mm", { locale: ja })} ·{" "}
               {session?.durationMinutes}分
               {(session?.carryoverMinutes ?? 0) > 0 && ` (+${session?.carryoverMinutes}分繰越)`}
+              {" · "}
+              {session?.sessionType === "voice" ? "🎙 音声" : session?.sessionType === "video" ? "📹 ビデオ" : "💬 チャット"}
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -926,9 +929,7 @@ export default function AdminSession() {
             {/* Voice Call Panel (voice sessions only) */}
             {session?.sessionType === "voice" && (
               <>
-                {/* 問題2: セッション前マイクテスト */}
                 {timerStatus === "idle" && <MicTest />}
-                {/* 問題3: preConnect=true で事前チャンネル接続 */}
                 <VoiceCall
                   sessionId={sessionId}
                   role="admin"
@@ -936,6 +937,15 @@ export default function AdminSession() {
                   preConnect={true}
                 />
               </>
+            )}
+
+            {/* Video Call Panel (video sessions only) */}
+            {session?.sessionType === "video" && (
+              <VideoCall
+                sessionId={sessionId}
+                role="admin"
+                isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+              />
             )}
 
             {/* Extension Notification */}

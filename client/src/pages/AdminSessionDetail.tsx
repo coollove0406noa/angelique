@@ -16,7 +16,7 @@ type SessionWithClient = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
-  sessionType: "chat" | "voice";
+  sessionType: "chat" | "voice" | "video";
   status: string;
   startedAt: Date | null;
   endedAt: Date | null;
@@ -189,6 +189,7 @@ export default function AdminSessionDetail() {
                 <option value="all">全鑑定方法</option>
                 <option value="chat">チャット</option>
                 <option value="voice">音声</option>
+                <option value="video">ビデオ</option>
               </select>
             </div>
 
@@ -212,8 +213,13 @@ export default function AdminSessionDetail() {
                       <span style={{ fontSize: "14px", fontWeight: 500, color: colors.text }}>
                         {format(new Date(s.scheduledAt), "M/d (E) HH:mm", { locale: ja })}
                       </span>
-                      <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "8px", background: s.sessionType === "voice" ? "#e8f5e9" : colors.main, color: s.sessionType === "voice" ? "#2e7d32" : colors.subText, border: s.sessionType === "voice" ? "1px solid #a5d6a7" : `1px solid ${colors.border}` }}>
-                        {s.sessionType === "voice" ? "🎙 音声" : "💬 チャット"}
+                      <span style={{
+                        fontSize: "11px", padding: "2px 8px", borderRadius: "8px",
+                        background: s.sessionType === "voice" ? "#e8f5e9" : s.sessionType === "video" ? "#e3f2fd" : colors.main,
+                        color: s.sessionType === "voice" ? "#2e7d32" : s.sessionType === "video" ? "#1565c0" : colors.subText,
+                        border: s.sessionType === "voice" ? "1px solid #a5d6a7" : s.sessionType === "video" ? "1px solid #90caf9" : `1px solid ${colors.border}`,
+                      }}>
+                        {s.sessionType === "voice" ? "🎙 音声" : s.sessionType === "video" ? "📹 ビデオ" : "💬 チャット"}
                       </span>
                     </div>
                     <div style={{ fontSize: "12px", color: colors.subText }}>
@@ -246,7 +252,9 @@ export default function AdminSessionDetail() {
                     </div>
                     <div>
                       <div style={{ color: colors.subText, fontSize: "11px", marginBottom: "2px" }}>鑑定方法</div>
-                      <div style={{ color: colors.text }}>{selectedSession.sessionType === "voice" ? "🎙 音声鑑定" : "💬 チャット鑑定"}</div>
+                      <div style={{ color: colors.text }}>
+                        {selectedSession.sessionType === "voice" ? "🎙 音声鑑定" : selectedSession.sessionType === "video" ? "📹 ビデオ鑑定" : "💬 チャット鑑定"}
+                      </div>
                     </div>
                     <div>
                       <div style={{ color: colors.subText, fontSize: "11px", marginBottom: "2px" }}>時間</div>

@@ -435,7 +435,7 @@ const sessionsRouter = router({
         carryoverMinutes: z.number().min(0).default(0),
         sendEmail: z.boolean().default(true),
         origin: z.string().optional(),
-        sessionType: z.enum(["chat", "voice"]).default("chat"),
+        sessionType: z.enum(["chat", "voice", "video"]).default("chat"),
       })
     )
     .mutation(async ({ input, ctx }) => {

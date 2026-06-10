@@ -7,6 +7,7 @@ import { ja } from "date-fns/locale";
 import { toast } from "sonner";
 import LinkifiedText from "@/components/LinkifiedText";
 import VoiceCall from "@/components/VoiceCall";
+import VideoCall from "@/components/VideoCall";
 import { WaitingRoom } from "@/components/WaitingRoom";
 import { BrandProvider } from "@/contexts/BrandContext";
 
@@ -26,7 +27,7 @@ type SessionInfo = {
   scheduledAt: Date;
   durationMinutes: number;
   carryoverMinutes: number;
-  sessionType: "chat" | "voice";
+  sessionType: "chat" | "voice" | "video";
   status: string;
   startedAt: Date | null;
   remainingSeconds: number | null;
@@ -330,8 +331,8 @@ export default function ClientSession() {
     const settings = storeSettings ?? [];
     const sType = session.sessionType ?? "chat";
     const keyMap: Record<number, string> = {
-      10: sType === "voice" ? "stores_url_voice_10min" : "stores_url_chat_10min",
-      30: sType === "voice" ? "stores_url_voice_30min" : "stores_url_chat_30min",
+      10: sType === "voice" || sType === "video" ? "stores_url_voice_10min" : "stores_url_chat_10min",
+      30: sType === "voice" || sType === "video" ? "stores_url_voice_30min" : "stores_url_chat_30min",
     };
     // Fallback to old key format for backward compat
     const fallbackMap: Record<number, string> = { 10: "stores_url_10min", 30: "stores_url_30min" };
@@ -381,7 +382,7 @@ export default function ClientSession() {
 
   // fixedバー合計高（ヘッダー53px + タイマー48px + 音声パネル）
   const HEADER_TIMER_HEIGHT = 101; // header(53) + timer(48)
-  const totalFixedHeight = HEADER_TIMER_HEIGHT + (session?.sessionType === "voice" ? voicePanelHeight : 0);
+  const totalFixedHeight = HEADER_TIMER_HEIGHT + (session?.sessionType === "voice" || session?.sessionType === "video" ? voicePanelHeight : 0);
 
   // Display timer - サーバー基準時刻から計算
   const displaySeconds = (() => {
@@ -751,6 +752,29 @@ export default function ClientSession() {
           }}
         >
           <VoiceCall
+            sessionId={session.id}
+            role="client"
+            isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+          />
+        </div>
+      )}
+
+      {/* Video Call Panel (video sessions only) - fixed固定 */}
+      {session?.sessionType === "video" && (
+        <div
+          ref={voicePanelCallbackRef}
+          style={{
+            padding: "12px 16px",
+            background: "#f9f5f4",
+            borderBottom: "1px solid #d4bfbb",
+            position: "fixed",
+            top: "101px",
+            left: 0,
+            right: 0,
+            zIndex: 35,
+          }}
+        >
+          <VideoCall
             sessionId={session.id}
             role="client"
             isSessionActive={timerStatus === "active" || timerStatus === "paused"}
