@@ -131,7 +131,7 @@ export const messages = mysqlTable("messages", {
   sessionId: int("sessionId").notNull(),
   sender: mysqlEnum("sender", ["admin", "client", "system"]).notNull(),
   content: text("content").notNull(),
-  imageUrl: text("imageUrl"),
+  imageUrl: mediumtext("imageUrl"),
   imageKey: varchar("imageKey", { length: 512 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

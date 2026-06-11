@@ -45,7 +45,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   const [pipOffset, setPipOffset] = useState({ x: 0, y: 0 });
   // 背景ぼかし
   const [bgBlur, setBgBlur] = useState(false);
-  const [bgBlurLoading, setBgBlurLoading] = useState(false);
 
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
@@ -59,13 +58,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   // PiP ドラッグ管理
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ mouseX: 0, mouseY: 0, pipX: 0, pipY: 0 });
-
-  // 背景ぼかし用リソース
-  const blurCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const blurVideoElRef = useRef<HTMLVideoElement | null>(null);
-  const blurAnimFrameRef = useRef<number | null>(null);
-  const blurCustomTrackRef = useRef<import("agora-rtc-sdk-ng").ILocalVideoTrack | null>(null);
-  const blurActiveRef = useRef(false);
 
   const getTokenMutation = trpc.agora.getToken.useMutation();
   const channelName = `session-${sessionId}`;
@@ -288,14 +280,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
 
   // ── 通話終了 ──────────────────────────────────────────────────────────────
   const endCall = useCallback(async () => {
-    // ぼかしリソースのクリーンアップ
-    if (blurAnimFrameRef.current) { cancelAnimationFrame(blurAnimFrameRef.current); blurAnimFrameRef.current = null; }
-    if (blurVideoElRef.current) { blurVideoElRef.current.pause(); blurVideoElRef.current.srcObject = null; blurVideoElRef.current = null; }
-    blurCustomTrackRef.current?.stop();
-    blurCustomTrackRef.current?.close();
-    blurCustomTrackRef.current = null;
-    blurCanvasRef.current = null;
-    blurActiveRef.current = false;
     setBgBlur(false);
 
     localAudioTrackRef.current?.stop();
@@ -336,130 +320,22 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
     const newOff = !isCameraOff;
     await localVideoTrackRef.current.setMuted(newOff);
     setIsCameraOff(newOff);
-    // カメラをONに戻したとき、ぼかし未使用なら PiP に再play
-    if (!newOff && localPipContainerRef.current && !blurActiveRef.current) {
+    if (!newOff && localPipContainerRef.current) {
       localVideoTrackRef.current.play(localPipContainerRef.current);
     }
     toast.info(newOff ? "カメラをOFFにしました" : "カメラをONにしました");
   }, [isCameraOff]);
 
-  // ── 背景ぼかし ────────────────────────────────────────────────────────────
-  const toggleBackgroundBlur = useCallback(async () => {
-    if (bgBlur) {
-      // ぼかし OFF
-      if (blurAnimFrameRef.current) { cancelAnimationFrame(blurAnimFrameRef.current); blurAnimFrameRef.current = null; }
-      if (blurVideoElRef.current) { blurVideoElRef.current.pause(); blurVideoElRef.current.srcObject = null; blurVideoElRef.current = null; }
-      if (blurCustomTrackRef.current && clientRef.current && localVideoTrackRef.current) {
-        try {
-          await clientRef.current.unpublish(blurCustomTrackRef.current);
-          await clientRef.current.publish(localVideoTrackRef.current);
-        } catch (e) {
-          console.warn("[VideoCall] Failed to restore camera track:", e);
-        }
-      }
-      blurCustomTrackRef.current?.stop();
-      blurCustomTrackRef.current?.close();
-      blurCustomTrackRef.current = null;
-      blurCanvasRef.current = null;
-      blurActiveRef.current = false;
-      if (localPipContainerRef.current && localVideoTrackRef.current && !isCameraOff) {
-        localVideoTrackRef.current.play(localPipContainerRef.current);
-      }
-      setBgBlur(false);
-      return;
-    }
-
-    if (!localVideoTrackRef.current || callStatus !== "connected") return;
-
-    setBgBlurLoading(true);
-    let unpublishedCamera = false;
-    try {
-      const canvas = document.createElement("canvas");
-      blurCanvasRef.current = canvas;
-
-      // カメラ映像を hidden video 要素で読み取る
-      const mediaStreamTrack = localVideoTrackRef.current.getMediaStreamTrack();
-      const videoEl = document.createElement("video");
-      videoEl.srcObject = new MediaStream([mediaStreamTrack]);
-      videoEl.muted = true;
-      videoEl.playsInline = true;
-      blurVideoElRef.current = videoEl;
-
-      await new Promise<void>((res) => {
-        videoEl.onloadedmetadata = () => { videoEl.play().catch(() => {}); res(); };
-        videoEl.play().catch(() => {});
-        setTimeout(res, 2000);
-      });
-
-      const w = videoEl.videoWidth || 640;
-      const h = videoEl.videoHeight || 480;
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d")!;
-
-      // シンプルぼかし：背景全体ブラー + 中央80%をそのまま重ねる
-      const render = () => {
-        if (!blurVideoElRef.current || !blurActiveRef.current) return;
-        const v = blurVideoElRef.current;
-
-        // Step1: 全体をぼかして描画（背景）
-        ctx.filter = "blur(15px)";
-        ctx.drawImage(v, 0, 0, w, h);
-        ctx.filter = "none";
-
-        // Step2: 中央80%（人物部分）をそのまま重ねる
-        const padX = Math.floor(w * 0.1);
-        const padY = Math.floor(h * 0.05);
-        ctx.drawImage(v, padX, padY, w - padX * 2, h - padY * 2, padX, padY, w - padX * 2, h - padY * 2);
-
-        blurAnimFrameRef.current = requestAnimationFrame(render);
-      };
-      render();
-
-      // キャンバスストリームで Agora トラックを差し替え
-      const canvasStream = canvas.captureStream(30);
-      const sdk = AgoraRTC!;
-      const customTrack = await sdk.createCustomVideoTrack({
-        mediaStreamTrack: canvasStream.getVideoTracks()[0],
-        frameRate: 30,
-      });
-      blurCustomTrackRef.current = customTrack;
-
-      if (clientRef.current && localVideoTrackRef.current) {
-        await clientRef.current.unpublish(localVideoTrackRef.current);
-        unpublishedCamera = true;
-        await clientRef.current.publish(customTrack);
-      }
-
-      if (localPipContainerRef.current && !isCameraOff) {
-        customTrack.play(localPipContainerRef.current);
-      }
-
-      blurActiveRef.current = true;
-      setBgBlur(true);
-      setBgBlurLoading(false);
-    } catch (err) {
-      console.error("[VideoCall] Background blur error:", err);
-      if (blurAnimFrameRef.current) { cancelAnimationFrame(blurAnimFrameRef.current); blurAnimFrameRef.current = null; }
-      if (blurVideoElRef.current) { blurVideoElRef.current.pause(); blurVideoElRef.current.srcObject = null; blurVideoElRef.current = null; }
-      blurCustomTrackRef.current?.stop();
-      blurCustomTrackRef.current?.close();
-      blurCustomTrackRef.current = null;
-      blurCanvasRef.current = null;
-      blurActiveRef.current = false;
-      // カメラが unpublish 済みの場合は再 publish して映像を維持
-      if (unpublishedCamera && clientRef.current && localVideoTrackRef.current) {
-        try {
-          await clientRef.current.publish(localVideoTrackRef.current);
-          if (localPipContainerRef.current && !isCameraOff) {
-            localVideoTrackRef.current.play(localPipContainerRef.current);
-          }
-        } catch {}
-      }
-      setBgBlurLoading(false);
-      // エラー時はサイレントに処理（画面が消えないことを優先）
-    }
-  }, [bgBlur, callStatus, isCameraOff]);
+  // ── 背景ぼかし（CSS filterのみ・自分のPiP表示に適用） ──────────────────────
+  const toggleBackgroundBlur = useCallback(() => {
+    const newBlur = !bgBlur;
+    setBgBlur(newBlur);
+    const container = localPipContainerRef.current;
+    if (!container) return;
+    const video = container.querySelector("video");
+    const target = video ?? container;
+    (target as HTMLElement).style.filter = newBlur ? "blur(8px)" : "";
+  }, [bgBlur]);
 
   // ── PiP ドラッグ（マウス）────────────────────────────────────────────────
   const handlePipMouseDown = useCallback(
@@ -525,10 +401,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   // ── アンマウント時クリーンアップ ─────────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (blurAnimFrameRef.current) cancelAnimationFrame(blurAnimFrameRef.current);
-      if (blurVideoElRef.current) { blurVideoElRef.current.pause(); blurVideoElRef.current.srcObject = null; }
-      blurCustomTrackRef.current?.stop();
-      blurCustomTrackRef.current?.close();
       localAudioTrackRef.current?.stop();
       localAudioTrackRef.current?.close();
       localVideoTrackRef.current?.stop();
@@ -881,7 +753,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
             {/* 背景ぼかし */}
             <Button
               onClick={toggleBackgroundBlur}
-              disabled={bgBlurLoading || isCameraOff}
+              disabled={isCameraOff}
               variant="outline"
               size="sm"
               style={
@@ -891,11 +763,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
               }
               title={bgBlur ? "背景ぼかしOFF" : "背景ぼかしON"}
             >
-              {bgBlurLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Layers className="w-4 h-4" />
-              )}
+              <Layers className="w-4 h-4" />
             </Button>
           </>
         )}
