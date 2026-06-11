@@ -495,12 +495,11 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
 
           {/* ローカル映像（PiP・ドラッグ可能）*/}
           <div
+            className="vc-pip-container"
             style={{
               position: "absolute",
               bottom: `${8 - pipOffset.y}px`,
               right: `${8 - pipOffset.x}px`,
-              width: "72px",
-              height: "54px",
               background: "#222",
               borderRadius: "6px",
               border: "2px solid rgba(255,255,255,0.8)",
@@ -752,12 +751,23 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
         </p>
       )}
 
-      {/* Agora が注入する <video> に object-fit: cover を適用 + レスポンシブ min-height */}
+      {/* Agora が注入する <video> に object-fit: cover + レスポンシブ min-height + PiP サイズ */}
       <style>{`
         /* PC のみ min-height を設定（スマホでは aspect-ratio: 16/9 のみ使用） */
         @media (min-width: 768px) {
           .vc-video-area {
             min-height: 400px;
+          }
+        }
+        /* PiP サイズ：PC 240×180px、スマホ 160×120px */
+        .vc-pip-container {
+          width: 240px;
+          height: 180px;
+        }
+        @media (max-width: 767px) {
+          .vc-pip-container {
+            width: 160px;
+            height: 120px;
           }
         }
         .vc-remote-video video,

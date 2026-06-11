@@ -433,3 +433,20 @@
   border-color: #c9a8a3 !important;
   color: #c9a8a3 !important;
 }
+
+/* ── スマホ UI 改善（768px 未満） ─────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* ベースフォントサイズを拡大 */
+  body {
+    font-size: 16px;
+  }
+
+  /* 共通ボタンを大きく（高さ +8〜10px、フォント 16px） */
+  .angelique-btn,
+  .angelique-btn-outline,
+  .angelique-btn-danger {
+    font-size: 16px !important;
+    padding: 13px 24px !important;
+    min-height: 48px;
+  }
+}
