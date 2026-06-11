@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
@@ -24,6 +24,8 @@ export default function AdminSettings() {
   const [savingUrls, setSavingUrls] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [brandName, setBrandName] = useState("");
+  const [uploadingStamp, setUploadingStamp] = useState(false);
+  const stampInputRef = useRef<HTMLInputElement>(null);
   const [themeColor, setThemeColor] = useState(fortuneTeller?.themeColor ?? "#f3e7e5");
   const [accentColor, setAccentColor] = useState(fortuneTeller?.accentColor ?? "#c9a8a3");
   const [savingBrand, setSavingBrand] = useState(false);
@@ -53,6 +55,37 @@ export default function AdminSettings() {
     onError: (e) => { toast.error(e.message); setSavingBrand(false); },
   });
   const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
+
+  const { data: stampsList, refetch: refetchStamps } = trpc.stamps.list.useQuery(
+    { fortuneTellerId: ftId },
+    { enabled: isAuthenticated && ftId > 0 }
+  );
+  const uploadStampMutation = trpc.stamps.upload.useMutation({
+    onSuccess: () => { toast.success("スタンプを追加しました"); setUploadingStamp(false); refetchStamps(); },
+    onError: (e) => { toast.error(e.message); setUploadingStamp(false); },
+  });
+  const deleteStampMutation = trpc.stamps.delete.useMutation({
+    onSuccess: () => { toast.success("削除しました"); refetchStamps(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function handleStampUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error("画像は2MB以下にしてください"); return; }
+    setUploadingStamp(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      uploadStampMutation.mutate({
+        fortuneTellerId: ftId,
+        base64Data: ev.target?.result as string,
+        mimeType: file.type,
+        name: file.name.replace(/\.[^.]+$/, ""),
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   useEffect(() => {
     if (settings) {
@@ -424,6 +457,58 @@ export default function AdminSettings() {
               {savingPassword ? "変更中..." : "パスワードを変更する"}
             </button>
           </form>
+        </div>
+
+        {/* Stamp Management */}
+        <div className="angelique-card p-6 mb-6">
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "20px", color: colors.text, marginBottom: "6px" }}>
+            ✦ スタンプ管理
+          </h2>
+          <p style={{ fontSize: "12px", color: colors.subText, marginBottom: "20px" }}>
+            セッション中にワンタップで送れるオリジナルスタンプを登録できます（最大10枚）
+          </p>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            ref={stampInputRef}
+            style={{ display: "none" }}
+            onChange={handleStampUpload}
+          />
+          <div style={{ marginBottom: "16px" }}>
+            <button
+              type="button"
+              className="angelique-btn-outline"
+              onClick={() => stampInputRef.current?.click()}
+              disabled={uploadingStamp || (stampsList?.length ?? 0) >= 10}
+              style={{ fontSize: "13px", padding: "8px 18px" }}
+            >
+              {uploadingStamp ? "アップロード中..." : "＋ スタンプを追加"}
+            </button>
+            {(stampsList?.length ?? 0) >= 10 && (
+              <p style={{ fontSize: "11px", color: colors.subText, marginTop: "6px" }}>最大10枚に達しています</p>
+            )}
+          </div>
+          {stampsList && stampsList.length > 0 ? (
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              {stampsList.map((stamp) => (
+                <div key={stamp.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                  <div style={{ width: "80px", height: "80px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${colors.border}`, background: colors.main, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <img src={stamp.imageUrl} alt={stamp.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                  </div>
+                  <span style={{ fontSize: "10px", color: colors.subText, maxWidth: "80px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stamp.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => deleteStampMutation.mutate({ id: stamp.id, fortuneTellerId: ftId })}
+                    style={{ fontSize: "11px", color: "#e57373", background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}
+                  >
+                    削除
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: "13px", color: colors.subText }}>スタンプがまだありません</p>
+          )}
         </div>
 
         {/* SendGrid Info */}

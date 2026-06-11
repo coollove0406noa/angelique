@@ -7,8 +7,10 @@ import {
   createClient,
   createFortuneTeller,
   createSession,
+  createStamp,
   deleteClient,
   deleteSession,
+  deleteStamp,
   getAllClients,
   getAllFortuneTellers,
   getAllSessions,
@@ -24,6 +26,7 @@ import {
   getSessionById,
   getSessionByToken,
   getSessionsByClientId,
+  getStampsByFortuneTeller,
   getSuperAdminPasswordHash,
   getSuperAdminSessionToken,
   markCarryoverApplied,
@@ -736,6 +739,66 @@ const emailRouter = router({
     }),
 });
 
+// ── Stamps ─────────────────────────────────────────────────────────────────
+
+const stampsRouter = router({
+  list: publicProcedure
+    .input(z.object({ fortuneTellerId: z.number() }))
+    .query(async ({ input }) => {
+      return getStampsByFortuneTeller(input.fortuneTellerId);
+    }),
+
+  upload: publicProcedure
+    .input(
+      z.object({
+        fortuneTellerId: z.number(),
+        base64Data: z.string(),
+        mimeType: z.string(),
+        name: z.string(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getAdminTokenFromCookie(cookieHeader);
+      const ft = token ? await getFortuneTellerByToken(token) : null;
+      if (!ft || ft.id !== input.fortuneTellerId) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      const existing = await getStampsByFortuneTeller(input.fortuneTellerId);
+      if (existing.length >= 10) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "スタンプは最大10枚です" });
+      }
+      const base64 = input.base64Data.replace(/^data:[^;]+;base64,/, "");
+      const buffer = Buffer.from(base64, "base64");
+      if (buffer.length > 2 * 1024 * 1024) {
+        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "画像は2MB以下にしてください" });
+      }
+      const ext = input.mimeType.split("/")[1] || "png";
+      const key = `stamps/${input.fortuneTellerId}/${Date.now()}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      const id = await createStamp({
+        fortuneTellerId: input.fortuneTellerId,
+        imageUrl: url,
+        imageKey: key,
+        name: input.name || `stamp_${Date.now()}`,
+      });
+      return { id, url, key };
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ id: z.number(), fortuneTellerId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getAdminTokenFromCookie(cookieHeader);
+      const ft = token ? await getFortuneTellerByToken(token) : null;
+      if (!ft || ft.id !== input.fortuneTellerId) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      await deleteStamp(input.id, input.fortuneTellerId);
+      return { success: true };
+    }),
+});
+
 // ── App Router ─────────────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -756,6 +819,7 @@ export const appRouter = router({
   messages: messagesRouter,
   carryover: carryoverRouter,
   settings: settingsRouter,
+  stamps: stampsRouter,
   email: emailRouter,
   agora: agoraRouter,
 });

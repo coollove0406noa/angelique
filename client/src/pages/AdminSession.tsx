@@ -78,6 +78,8 @@ export default function AdminSession() {
   // 画像アップロード
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  // スタンプタブ
+  const [stampTab, setStampTab] = useState<"text" | "custom">("text");
   // クライアント待機通知
   const [clientWaiting, setClientWaiting] = useState(false);
   const [clientEndedByClient, setClientEndedByClient] = useState(false);
@@ -134,6 +136,10 @@ export default function AdminSession() {
   });
   const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
   const uploadImageMutation = trpc.messages.uploadImage.useMutation();
+  const { data: customStamps } = trpc.stamps.list.useQuery(
+    { fortuneTellerId: fortuneTeller?.fortuneTellerId ?? 0 },
+    { enabled: isAuthenticated && !!fortuneTeller }
+  );
 
   // Initialize session state
   useEffect(() => {
@@ -400,6 +406,17 @@ export default function AdminSession() {
       sessionId,
       sender: "admin",
       content: text,
+    });
+    toast.success("送信しました");
+  }, [sessionId]);
+
+  // カスタムスタンプ送信
+  const handleSendCustomStamp = useCallback((imageUrl: string) => {
+    socketRef.current?.emit("send_message", {
+      sessionId,
+      sender: "admin",
+      content: "",
+      imageUrl,
     });
     toast.success("送信しました");
   }, [sessionId]);
@@ -835,43 +852,97 @@ export default function AdminSession() {
             </div>
 
             {/* スタンプパネル */}
-            <div
-              style={{
-                borderTop: `1px solid ${colors.border}`,
-                padding: "8px 12px",
-                display: "flex",
-                gap: "6px",
-                flexWrap: "wrap",
-                background: colors.main,
-              }}
-            >
-              {STAMPS.map((stamp) => (
-                <button
-                  key={stamp.text}
-                  onClick={() => handleSendStamp(stamp.text)}
-                  style={{
-                    background: colors.main,
-                    border: `1px solid ${colors.border}`,
-                    borderRadius: "20px",
-                    padding: "4px 12px",
-                    fontSize: "12px",
-                    color: colors.text,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                    transition: "all 0.15s",
-                    fontFamily: "'Noto Sans JP', sans-serif",
-                  }}
-                  onMouseOver={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = colors.border;
-                  }}
-                  onMouseOut={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = colors.main;
-                  }}
-                  title={`ワンタップ送信: ${stamp.text}`}
-                >
-                  {stamp.label}
-                </button>
-              ))}
+            <div style={{ borderTop: `1px solid ${colors.border}`, background: colors.main }}>
+              {/* タブ */}
+              <div style={{ display: "flex", borderBottom: `1px solid ${colors.border}` }}>
+                {(["text", "custom"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setStampTab(tab)}
+                    style={{
+                      padding: "5px 14px",
+                      fontSize: "11px",
+                      background: "transparent",
+                      border: "none",
+                      borderBottom: stampTab === tab ? `2px solid ${colors.accent}` : "2px solid transparent",
+                      color: stampTab === tab ? colors.text : colors.subText,
+                      cursor: "pointer",
+                      fontWeight: stampTab === tab ? 600 : 400,
+                    }}
+                  >
+                    {tab === "text" ? "テキスト" : "カスタム"}
+                  </button>
+                ))}
+              </div>
+
+              {/* テキストスタンプ */}
+              {stampTab === "text" && (
+                <div style={{ padding: "8px 12px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {STAMPS.map((stamp) => (
+                    <button
+                      key={stamp.text}
+                      onClick={() => handleSendStamp(stamp.text)}
+                      style={{
+                        background: colors.main,
+                        border: `1px solid ${colors.border}`,
+                        borderRadius: "20px",
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        color: colors.text,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.15s",
+                        fontFamily: "'Noto Sans JP', sans-serif",
+                      }}
+                      onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = colors.border; }}
+                      onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = colors.main; }}
+                      title={`ワンタップ送信: ${stamp.text}`}
+                    >
+                      {stamp.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* カスタムスタンプ */}
+              {stampTab === "custom" && (
+                <div style={{ padding: "8px 12px" }}>
+                  {!customStamps || customStamps.length === 0 ? (
+                    <p style={{ fontSize: "12px", color: colors.subText }}>
+                      カスタムスタンプがありません。設定 › スタンプ管理から追加してください。
+                    </p>
+                  ) : (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {customStamps.map((stamp) => (
+                        <button
+                          key={stamp.id}
+                          onClick={() => handleSendCustomStamp(stamp.imageUrl)}
+                          title={stamp.name}
+                          style={{
+                            background: "none",
+                            border: `1px solid ${colors.border}`,
+                            borderRadius: "8px",
+                            padding: "4px",
+                            cursor: "pointer",
+                            width: "56px",
+                            height: "56px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <img
+                            src={stamp.imageUrl}
+                            alt={stamp.name}
+                            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Input */}

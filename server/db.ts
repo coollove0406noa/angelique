@@ -10,6 +10,7 @@ import {
   InsertFortuneTeller,
   messages,
   sessions,
+  stamps,
   superAdminAuth,
   users,
 } from "../drizzle/schema";
@@ -546,4 +547,36 @@ export async function setSettingForFortuneTeller(
   label?: string
 ) {
   return setSetting(makeFtKey(fortuneTellerId, key), value, label);
+}
+
+// ── Stamps ─────────────────────────────────────────────────────────────────
+
+export async function getStampsByFortuneTeller(fortuneTellerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(stamps)
+    .where(eq(stamps.fortuneTellerId, fortuneTellerId))
+    .orderBy(stamps.createdAt);
+}
+
+export async function createStamp(data: {
+  fortuneTellerId: number;
+  imageUrl: string;
+  imageKey: string;
+  name: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(stamps).values(data);
+  return result[0].insertId as number;
+}
+
+export async function deleteStamp(id: number, fortuneTellerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .delete(stamps)
+    .where(and(eq(stamps.id, id), eq(stamps.fortuneTellerId, fortuneTellerId)));
 }
