@@ -72,7 +72,7 @@ export default function AdminSettings() {
   function handleStampUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error("画像は2MB以下にしてください"); return; }
+    if (file.size > 500 * 1024) { toast.error("画像は500KB以下にしてください"); return; }
     setUploadingStamp(true);
     const reader = new FileReader();
     reader.onload = (ev) => {

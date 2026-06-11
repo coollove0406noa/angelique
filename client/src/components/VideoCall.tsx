@@ -30,20 +30,6 @@ type CallStatus =
 // Agora SDK はグローバルキャッシュ（動的インポート）
 let AgoraRTC: typeof import("agora-rtc-sdk-ng").default | null = null;
 
-// MediaPipe Selfie Segmentation を CDN から動的ロード
-function loadMediaPipeScript(): Promise<any> {
-  if ((window as any).SelfieSegmentation) return Promise.resolve((window as any).SelfieSegmentation);
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("timeout")), 8000);
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/selfie_segmentation.js";
-    s.crossOrigin = "anonymous";
-    s.onload = () => { clearTimeout(timeout); resolve((window as any).SelfieSegmentation ?? null); };
-    s.onerror = () => { clearTimeout(timeout); reject(new Error("load failed")); };
-    document.head.appendChild(s);
-  });
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // コンポーネント
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,7 +66,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   const blurAnimFrameRef = useRef<number | null>(null);
   const blurCustomTrackRef = useRef<import("agora-rtc-sdk-ng").ILocalVideoTrack | null>(null);
   const blurActiveRef = useRef(false);
-  const segmentationRef = useRef<any>(null);
 
   const getTokenMutation = trpc.agora.getToken.useMutation();
   const channelName = `session-${sessionId}`;
@@ -305,7 +290,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   const endCall = useCallback(async () => {
     // ぼかしリソースのクリーンアップ
     if (blurAnimFrameRef.current) { cancelAnimationFrame(blurAnimFrameRef.current); blurAnimFrameRef.current = null; }
-    if (segmentationRef.current) { try { segmentationRef.current.close(); } catch {} segmentationRef.current = null; }
     if (blurVideoElRef.current) { blurVideoElRef.current.pause(); blurVideoElRef.current.srcObject = null; blurVideoElRef.current = null; }
     blurCustomTrackRef.current?.stop();
     blurCustomTrackRef.current?.close();
@@ -364,9 +348,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
     if (bgBlur) {
       // ぼかし OFF
       if (blurAnimFrameRef.current) { cancelAnimationFrame(blurAnimFrameRef.current); blurAnimFrameRef.current = null; }
-      if (segmentationRef.current) { try { segmentationRef.current.close(); } catch {} segmentationRef.current = null; }
       if (blurVideoElRef.current) { blurVideoElRef.current.pause(); blurVideoElRef.current.srcObject = null; blurVideoElRef.current = null; }
-
       if (blurCustomTrackRef.current && clientRef.current && localVideoTrackRef.current) {
         try {
           await clientRef.current.unpublish(blurCustomTrackRef.current);
@@ -380,7 +362,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
       blurCustomTrackRef.current = null;
       blurCanvasRef.current = null;
       blurActiveRef.current = false;
-
       if (localPipContainerRef.current && localVideoTrackRef.current && !isCameraOff) {
         localVideoTrackRef.current.play(localPipContainerRef.current);
       }
@@ -391,10 +372,12 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
     if (!localVideoTrackRef.current || callStatus !== "connected") return;
 
     setBgBlurLoading(true);
+    let unpublishedCamera = false;
     try {
       const canvas = document.createElement("canvas");
       blurCanvasRef.current = canvas;
 
+      // カメラ映像を hidden video 要素で読み取る
       const mediaStreamTrack = localVideoTrackRef.current.getMediaStreamTrack();
       const videoEl = document.createElement("video");
       videoEl.srcObject = new MediaStream([mediaStreamTrack]);
@@ -403,8 +386,8 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
       blurVideoElRef.current = videoEl;
 
       await new Promise<void>((res) => {
-        videoEl.onloadedmetadata = () => res();
-        videoEl.play().catch(() => res());
+        videoEl.onloadedmetadata = () => { videoEl.play().catch(() => {}); res(); };
+        videoEl.play().catch(() => {});
         setTimeout(res, 2000);
       });
 
@@ -414,56 +397,26 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
       canvas.height = h;
       const ctx = canvas.getContext("2d")!;
 
-      let useMediaPipe = false;
-      try {
-        const SelfieSegmentation = await loadMediaPipeScript();
-        if (SelfieSegmentation) {
-          const seg = new SelfieSegmentation({
-            locateFile: (file: string) =>
-              `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${file}`,
-          });
-          seg.setOptions({ modelSelection: 1, selfieMode: false });
-          seg.onResults((results: any) => {
-            // Step1: 全体をぼかして描画
-            ctx.globalCompositeOperation = "source-over";
-            ctx.filter = "blur(15px)";
-            ctx.drawImage(results.image, 0, 0, w, h);
-            ctx.filter = "none";
-            // Step2: マスク（人物部分）をくり抜く
-            ctx.globalCompositeOperation = "destination-out";
-            ctx.drawImage(results.segmentationMask, 0, 0, w, h);
-            // Step3: 元画像を背面に配置（人物部分に非ぼかし映像を表示）
-            ctx.globalCompositeOperation = "destination-over";
-            ctx.drawImage(results.image, 0, 0, w, h);
-            ctx.globalCompositeOperation = "source-over";
-          });
-          segmentationRef.current = seg;
-          useMediaPipe = true;
-        }
-      } catch {
-        console.warn("[VideoCall] MediaPipe not available, using simple blur");
-      }
+      // シンプルぼかし：背景全体ブラー + 中央80%をそのまま重ねる
+      const render = () => {
+        if (!blurVideoElRef.current || !blurActiveRef.current) return;
+        const v = blurVideoElRef.current;
 
-      if (!useMediaPipe) {
-        // シンプルぼかし（全体ブラー）フォールバック
-        const renderSimple = () => {
-          if (!blurVideoElRef.current || !blurActiveRef.current) return;
-          ctx.filter = "blur(15px)";
-          ctx.drawImage(blurVideoElRef.current, 0, 0, w, h);
-          ctx.filter = "none";
-          blurAnimFrameRef.current = requestAnimationFrame(renderSimple);
-        };
-        renderSimple();
-      } else {
-        // MediaPipe ループ（send が完了してから次フレームをスケジュール）
-        const renderMP = async () => {
-          if (!blurVideoElRef.current || !segmentationRef.current || !blurActiveRef.current) return;
-          try { await segmentationRef.current.send({ image: blurVideoElRef.current }); } catch {}
-          if (blurActiveRef.current) blurAnimFrameRef.current = requestAnimationFrame(renderMP);
-        };
-        renderMP();
-      }
+        // Step1: 全体をぼかして描画（背景）
+        ctx.filter = "blur(15px)";
+        ctx.drawImage(v, 0, 0, w, h);
+        ctx.filter = "none";
 
+        // Step2: 中央80%（人物部分）をそのまま重ねる
+        const padX = Math.floor(w * 0.1);
+        const padY = Math.floor(h * 0.05);
+        ctx.drawImage(v, padX, padY, w - padX * 2, h - padY * 2, padX, padY, w - padX * 2, h - padY * 2);
+
+        blurAnimFrameRef.current = requestAnimationFrame(render);
+      };
+      render();
+
+      // キャンバスストリームで Agora トラックを差し替え
       const canvasStream = canvas.captureStream(30);
       const sdk = AgoraRTC!;
       const customTrack = await sdk.createCustomVideoTrack({
@@ -474,6 +427,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
 
       if (clientRef.current && localVideoTrackRef.current) {
         await clientRef.current.unpublish(localVideoTrackRef.current);
+        unpublishedCamera = true;
         await clientRef.current.publish(customTrack);
       }
 
@@ -493,8 +447,17 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
       blurCustomTrackRef.current = null;
       blurCanvasRef.current = null;
       blurActiveRef.current = false;
+      // カメラが unpublish 済みの場合は再 publish して映像を維持
+      if (unpublishedCamera && clientRef.current && localVideoTrackRef.current) {
+        try {
+          await clientRef.current.publish(localVideoTrackRef.current);
+          if (localPipContainerRef.current && !isCameraOff) {
+            localVideoTrackRef.current.play(localPipContainerRef.current);
+          }
+        } catch {}
+      }
       setBgBlurLoading(false);
-      toast.error("背景ぼかしの起動に失敗しました");
+      // エラー時はサイレントに処理（画面が消えないことを優先）
     }
   }, [bgBlur, callStatus, isCameraOff]);
 
@@ -563,7 +526,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   useEffect(() => {
     return () => {
       if (blurAnimFrameRef.current) cancelAnimationFrame(blurAnimFrameRef.current);
-      if (segmentationRef.current) { try { segmentationRef.current.close(); } catch {} }
       if (blurVideoElRef.current) { blurVideoElRef.current.pause(); blurVideoElRef.current.srcObject = null; }
       blurCustomTrackRef.current?.stop();
       blurCustomTrackRef.current?.close();
@@ -959,15 +921,15 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
             min-height: 400px;
           }
         }
-        /* PiP サイズ：PC 240×180px、スマホ 160×120px */
+        /* PiP サイズ：PC 160×120px、スマホ 120×90px */
         .vc-pip-container {
-          width: 240px;
-          height: 180px;
+          width: 160px;
+          height: 120px;
         }
         @media (max-width: 767px) {
           .vc-pip-container {
-            width: 160px;
-            height: 120px;
+            width: 120px;
+            height: 90px;
           }
         }
         .vc-remote-video video,

@@ -768,21 +768,21 @@ const stampsRouter = router({
       if (existing.length >= 10) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "スタンプは最大10枚です" });
       }
+      // サイズチェック（Base64デコード後 500KB 以下）
       const base64 = input.base64Data.replace(/^data:[^;]+;base64,/, "");
-      const buffer = Buffer.from(base64, "base64");
-      if (buffer.length > 2 * 1024 * 1024) {
-        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "画像は2MB以下にしてください" });
+      const byteSize = Math.floor(base64.length * 0.75);
+      if (byteSize > 500 * 1024) {
+        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "画像は500KB以下にしてください" });
       }
-      const ext = input.mimeType.split("/")[1] || "png";
-      const key = `stamps/${input.fortuneTellerId}/${Date.now()}.${ext}`;
-      const { url } = await storagePut(key, buffer, input.mimeType);
+      // Base64データURLをそのままDBに保存（S3不要）
+      const imageUrl = input.base64Data;
       const id = await createStamp({
         fortuneTellerId: input.fortuneTellerId,
-        imageUrl: url,
-        imageKey: key,
+        imageUrl,
+        imageKey: "",
         name: input.name || `stamp_${Date.now()}`,
       });
-      return { id, url, key };
+      return { id, url: imageUrl, key: "" };
     }),
 
   delete: publicProcedure
