@@ -765,8 +765,8 @@ const stampsRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
       const existing = await getStampsByFortuneTeller(input.fortuneTellerId);
-      if (existing.length >= 10) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "スタンプは最大10枚です" });
+      if (existing.length >= 30) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "スタンプは最大30枚です" });
       }
       // サイズチェック（Base64デコード後 500KB 以下）
       const base64 = input.base64Data.replace(/^data:[^;]+;base64,/, "");

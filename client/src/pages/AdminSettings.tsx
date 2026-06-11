@@ -465,7 +465,7 @@ export default function AdminSettings() {
             ✦ スタンプ管理
           </h2>
           <p style={{ fontSize: "12px", color: colors.subText, marginBottom: "20px" }}>
-            セッション中にワンタップで送れるオリジナルスタンプを登録できます（最大10枚）
+            セッション中にワンタップで送れるオリジナルスタンプを登録できます（最大30枚）
           </p>
           <input
             type="file"
@@ -479,13 +479,13 @@ export default function AdminSettings() {
               type="button"
               className="angelique-btn-outline"
               onClick={() => stampInputRef.current?.click()}
-              disabled={uploadingStamp || (stampsList?.length ?? 0) >= 10}
+              disabled={uploadingStamp || (stampsList?.length ?? 0) >= 30}
               style={{ fontSize: "13px", padding: "8px 18px" }}
             >
               {uploadingStamp ? "アップロード中..." : "＋ スタンプを追加"}
             </button>
-            {(stampsList?.length ?? 0) >= 10 && (
-              <p style={{ fontSize: "11px", color: colors.subText, marginTop: "6px" }}>最大10枚に達しています</p>
+            {(stampsList?.length ?? 0) >= 30 && (
+              <p style={{ fontSize: "11px", color: colors.subText, marginTop: "6px" }}>最大30枚に達しています</p>
             )}
           </div>
           {stampsList && stampsList.length > 0 ? (
