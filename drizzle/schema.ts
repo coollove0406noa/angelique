@@ -1,6 +1,7 @@
 import {
   boolean,
   int,
+  mediumtext,
   mysqlEnum,
   mysqlTable,
   text,
@@ -176,7 +177,7 @@ export type InsertAppSetting = typeof appSettings.$inferInsert;
 export const stamps = mysqlTable("stamps", {
   id: int("id").autoincrement().primaryKey(),
   fortuneTellerId: int("fortuneTellerId").notNull(),
-  imageUrl: text("imageUrl").notNull(),
+  imageUrl: mediumtext("imageUrl").notNull(),
   imageKey: varchar("imageKey", { length: 512 }).notNull(),
   name: varchar("name", { length: 100 }).notNull().default(""),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

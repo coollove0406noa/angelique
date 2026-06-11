@@ -1,0 +1,2 @@
+-- テーブルが既に TEXT で作成されている場合の ALTER (MEDIUMTEXT へ変更)
+ALTER TABLE stamps MODIFY COLUMN imageUrl MEDIUMTEXT NOT NULL;
