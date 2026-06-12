@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Mic, MicOff, Video, VideoOff,
-  Phone, PhoneOff, AlertCircle, CheckCircle, Loader2, Layers,
+  Phone, PhoneOff, AlertCircle, CheckCircle, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -43,8 +43,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   const [errorDetail, setErrorDetail] = useState("");
   // PiP ドラッグ用オフセット（default: bottom-right コーナー）
   const [pipOffset, setPipOffset] = useState({ x: 0, y: 0 });
-  // 背景ぼかし
-  const [bgBlur, setBgBlur] = useState(false);
 
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
@@ -280,8 +278,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
 
   // ── 通話終了 ──────────────────────────────────────────────────────────────
   const endCall = useCallback(async () => {
-    setBgBlur(false);
-
     localAudioTrackRef.current?.stop();
     localAudioTrackRef.current?.close();
     localAudioTrackRef.current = null;
@@ -325,17 +321,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
     }
     toast.info(newOff ? "カメラをOFFにしました" : "カメラをONにしました");
   }, [isCameraOff]);
-
-  // ── 背景ぼかし（CSS filterのみ・自分のPiP表示に適用） ──────────────────────
-  const toggleBackgroundBlur = useCallback(() => {
-    const newBlur = !bgBlur;
-    setBgBlur(newBlur);
-    const container = localPipContainerRef.current;
-    if (!container) return;
-    const video = container.querySelector("video");
-    const target = video ?? container;
-    (target as HTMLElement).style.filter = newBlur ? "blur(8px)" : "";
-  }, [bgBlur]);
 
   // ── PiP ドラッグ（マウス）────────────────────────────────────────────────
   const handlePipMouseDown = useCallback(
@@ -750,21 +735,6 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
               )}
             </Button>
 
-            {/* 背景ぼかし */}
-            <Button
-              onClick={toggleBackgroundBlur}
-              disabled={isCameraOff}
-              variant="outline"
-              size="sm"
-              style={
-                bgBlur
-                  ? { borderColor: "#7986cb", color: "#3949ab", background: "#e8eaf6" }
-                  : { borderColor: "#c9a8a3", color: "#6b5b58" }
-              }
-              title={bgBlur ? "背景ぼかしOFF" : "背景ぼかしON"}
-            >
-              <Layers className="w-4 h-4" />
-            </Button>
           </>
         )}
       </div>
