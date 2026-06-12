@@ -765,7 +765,7 @@ export default function AdminSession() {
           {/* Left Main Area: ビデオ通話（上部）+ チャット（下部または全体） */}
           <div className="flex-1 flex flex-col gap-3" style={{ minHeight: 0, height: "calc(100vh - 320px)" }}>
             {session?.sessionType === "video" && (
-              <div className="angelique-card p-3" style={{ flexShrink: 0 }}>
+              <div className="angelique-card p-3" style={{ flexShrink: 0, maxHeight: "350px", overflow: "hidden" }}>
                 <VideoCall
                   sessionId={sessionId}
                   role="admin"
@@ -773,7 +773,7 @@ export default function AdminSession() {
                 />
               </div>
             )}
-            <div className="angelique-card flex flex-col" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <div className="angelique-card flex flex-col" style={{ flex: 1, minHeight: session?.sessionType === "video" ? "400px" : 0, overflow: "hidden" }}>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3" style={{ paddingTop: "80px" }}>
               {messages.length === 0 && (
@@ -924,8 +924,8 @@ export default function AdminSession() {
                             borderRadius: "8px",
                             padding: "4px",
                             cursor: "pointer",
-                            width: "56px",
-                            height: "56px",
+                            width: "88px",
+                            height: "88px",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -935,7 +935,7 @@ export default function AdminSession() {
                           <img
                             src={stamp.imageUrl}
                             alt={stamp.name}
-                            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                            style={{ maxWidth: "80px", maxHeight: "80px", objectFit: "contain" }}
                           />
                         </button>
                       ))}
