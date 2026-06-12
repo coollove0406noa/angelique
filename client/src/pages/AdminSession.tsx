@@ -765,7 +765,7 @@ export default function AdminSession() {
           {/* Left Main Area: ビデオ通話（上部）+ チャット（下部または全体） */}
           <div className="flex-1 flex flex-col gap-3" style={{ minHeight: 0, height: "calc(100vh - 320px)" }}>
             {session?.sessionType === "video" && (
-              <div className="angelique-card p-3" style={{ flexShrink: 0, maxHeight: "350px", overflow: "hidden" }}>
+              <div className="angelique-card p-3" style={{ flexShrink: 0 }}>
                 <VideoCall
                   sessionId={sessionId}
                   role="admin"

@@ -751,12 +751,14 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
         </p>
       )}
 
-      {/* Agora が注入する <video> に object-fit: cover + レスポンシブ min-height + PiP サイズ */}
+      {/* Agora が注入する <video> に object-fit: cover + レスポンシブサイズ + PiP サイズ */}
       <style>{`
-        /* PC のみ min-height を設定（スマホでは aspect-ratio: 16/9 のみ使用） */
+        /* PC: aspect-ratio 維持のまま最大 300px 高に制限し中央寄せ */
         @media (min-width: 768px) {
           .vc-video-area {
-            min-height: 400px;
+            max-width: calc(300px * 16 / 9);
+            max-height: 300px;
+            margin: 0 auto;
           }
         }
         /* PiP サイズ：PC 160×120px、スマホ 120×90px */
