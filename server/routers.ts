@@ -417,7 +417,8 @@ const sessionsRouter = router({
     .query(async ({ input }) => {
       const session = await getSessionById(input.id);
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
-      return session;
+      const client = await getClientById(session.clientId);
+      return { ...session, clientName: client?.name ?? null, clientEmail: client?.email ?? null };
     }),
 
   getByToken: publicProcedure

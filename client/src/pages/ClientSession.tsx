@@ -286,44 +286,59 @@ export default function ClientSession() {
     setInputText("");
   }, [inputText, session]);
 
+  // 画像リサイズ（長辺1200px・JPEG 0.8 に圧縮）
+  const resizeImage = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1200;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width >= height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }, []);
+
   // 画像送信
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !session) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("画像は5MB以下にしてください");
-      return;
-    }
+    if (imageInputRef.current) imageInputRef.current.value = "";
 
     setUploadingImage(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const base64Data = ev.target?.result as string;
-        const result = await uploadImageMutation.mutateAsync({
-          sessionId: session.id,
-          sender: "client",
-          base64Data,
-          mimeType: file.type,
-          fileName: file.name,
-        });
-        socketRef.current?.emit("send_message", {
-          sessionId: session.id,
-          sender: "client",
-          content: "📷 画像を送信しました",
-          imageUrl: result.url,
-          imageKey: result.key,
-        });
-        setUploadingImage(false);
-      };
-      reader.readAsDataURL(file);
+      const base64Data = await resizeImage(file);
+      const result = await uploadImageMutation.mutateAsync({
+        sessionId: session.id,
+        sender: "client",
+        base64Data,
+        mimeType: "image/jpeg",
+        fileName: file.name,
+      });
+      socketRef.current?.emit("send_message", {
+        sessionId: session.id,
+        sender: "client",
+        content: "📷 画像を送信しました",
+        imageUrl: result.url,
+        imageKey: result.key,
+      });
     } catch {
       toast.error("画像の送信に失敗しました");
+    } finally {
       setUploadingImage(false);
     }
-    if (imageInputRef.current) imageInputRef.current.value = "";
-  }, [session, uploadImageMutation]);
+  }, [session, uploadImageMutation, resizeImage]);
 
   // 延長ボタン → 別タブで決済URLを開く＆申請分数を記憶
   const handleExtensionRequest = useCallback((minutes: number) => {
