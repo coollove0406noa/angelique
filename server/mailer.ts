@@ -58,7 +58,7 @@ export async function sendSessionLog({
     day: "numeric",
   });
 
-  // メッセージ行を生成（システムメッセージはスキップ、画像は[画像]に置換）
+  // メッセージ行を生成（システムメッセージはスキップ）
   const messageRows = messages
     .filter((m) => m.sender !== "system")
     .map((m) => {
@@ -68,21 +68,29 @@ export async function sendSessionLog({
         minute: "2-digit",
       });
       const senderLabel = m.sender === "admin" ? brandName : "あなた";
-      const isImage = m.imageUrl != null;
-      // スタンプ判定：content が空で imageUrl あり
-      const isStamp = isImage && (!m.content || m.content.trim() === "");
+      const isAdmin = m.sender === "admin";
+      const hasImage = m.imageUrl != null && m.imageUrl.startsWith("data:image");
+
       let bodyText: string;
-      if (isImage) {
-        bodyText = isStamp ? "[スタンプ]" : "[画像]";
+      if (hasImage) {
+        // base64 画像をそのまま埋め込む（失敗時は[画像]にフォールバック）
+        try {
+          bodyText = `<img src="${m.imageUrl}" style="max-width:200px; max-height:200px; border-radius:8px; display:block; margin-top:4px;" alt="画像" />`;
+        } catch {
+          bodyText = "[画像]";
+        }
       } else {
         const escaped = m.content
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
           .replace(/\n/g, "<br>");
-        bodyText = escaped;
+        bodyText = escaped || "";
       }
-      const isAdmin = m.sender === "admin";
+
+      // content が空で画像なし（スタンプ扱いだが画像がない）はスキップ
+      if (!bodyText && !hasImage) return "";
+
       return `
       <tr>
         <td style="padding: 10px 0; border-bottom: 1px solid ${mainColor}; vertical-align: top;">
