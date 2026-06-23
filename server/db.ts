@@ -598,16 +598,25 @@ export async function getClientProfile(clientId: number) {
 export async function upsertClientProfile(data: {
   clientId: number;
   birthdate?: string | null;
+  birthtime?: string | null;
+  birthplace?: string | null;
   bloodType?: string | null;
   memo?: string | null;
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  const fields = {
+    birthdate: data.birthdate ?? null,
+    birthtime: data.birthtime ?? null,
+    birthplace: data.birthplace ?? null,
+    bloodType: data.bloodType ?? null,
+    memo: data.memo ?? null,
+  };
   const existing = await db.select({ id: clientProfiles.id }).from(clientProfiles).where(eq(clientProfiles.clientId, data.clientId)).limit(1);
   if (existing.length > 0) {
-    await db.update(clientProfiles).set({ birthdate: data.birthdate ?? null, bloodType: data.bloodType ?? null, memo: data.memo ?? null }).where(eq(clientProfiles.clientId, data.clientId));
+    await db.update(clientProfiles).set(fields).where(eq(clientProfiles.clientId, data.clientId));
   } else {
-    await db.insert(clientProfiles).values({ clientId: data.clientId, birthdate: data.birthdate ?? null, bloodType: data.bloodType ?? null, memo: data.memo ?? null });
+    await db.insert(clientProfiles).values({ clientId: data.clientId, ...fields });
   }
 }
 

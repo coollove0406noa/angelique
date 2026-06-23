@@ -284,6 +284,8 @@ function KarteModal({ client, colors, onClose }: { client: Client; colors: Karte
   const { data, refetch } = trpc.clientProfile.get.useQuery({ clientId: client.id });
 
   const [birthdate, setBirthdate] = useState("");
+  const [birthtime, setBirthtime] = useState("");
+  const [birthplace, setBirthplace] = useState("");
   const [bloodType, setBloodType] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -299,6 +301,8 @@ function KarteModal({ client, colors, onClose }: { client: Client; colors: Karte
   useEffect(() => {
     if (data?.profile) {
       setBirthdate(data.profile.birthdate ?? "");
+      setBirthtime(data.profile.birthtime ?? "");
+      setBirthplace(data.profile.birthplace ?? "");
       setBloodType(data.profile.bloodType ?? "");
       setMemo(data.profile.memo ?? "");
     }
@@ -307,7 +311,7 @@ function KarteModal({ client, colors, onClose }: { client: Client; colors: Karte
   async function handleSave() {
     setSaving(true);
     try {
-      await upsertMutation.mutateAsync({ clientId: client.id, birthdate: birthdate || null, bloodType: bloodType || null, memo: memo || null });
+      await upsertMutation.mutateAsync({ clientId: client.id, birthdate: birthdate || null, birthtime: birthtime || null, birthplace: birthplace || null, bloodType: bloodType || null, memo: memo || null });
       toast.success("カルテを保存しました");
       refetch();
     } catch {
@@ -367,6 +371,16 @@ function KarteModal({ client, colors, onClose }: { client: Client; colors: Karte
             <div>
               <label className="angelique-label">生年月日</label>
               <input type="date" className="angelique-input" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} />
+            </div>
+            <div>
+              <label className="angelique-label">出生時刻（任意）</label>
+              <input type="time" className="angelique-input" value={birthtime} onChange={(e) => setBirthtime(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="angelique-label">出生地（任意）</label>
+              <input type="text" className="angelique-input" value={birthplace} onChange={(e) => setBirthplace(e.target.value)} placeholder="東京都・大阪府など" />
             </div>
             <div>
               <label className="angelique-label">血液型</label>

@@ -817,6 +817,8 @@ const clientProfileRouter = router({
     .input(z.object({
       clientId: z.number(),
       birthdate: z.string().nullable().optional(),
+      birthtime: z.string().nullable().optional(),
+      birthplace: z.string().nullable().optional(),
       bloodType: z.string().nullable().optional(),
       memo: z.string().nullable().optional(),
     }))

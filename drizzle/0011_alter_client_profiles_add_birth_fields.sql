@@ -1,0 +1,3 @@
+ALTER TABLE client_profiles
+  ADD COLUMN birthtime VARCHAR(8) DEFAULT NULL COMMENT '出生時刻',
+  ADD COLUMN birthplace VARCHAR(100) DEFAULT NULL COMMENT '出生地';

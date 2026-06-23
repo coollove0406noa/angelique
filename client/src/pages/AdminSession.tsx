@@ -1273,6 +1273,8 @@ function KartePanel({ clientId, colors }: { clientId: number; colors: KarteColor
   const { data, refetch } = trpc.clientProfile.get.useQuery({ clientId }, { enabled: open });
 
   const [birthdate, setBirthdate] = useState("");
+  const [birthtime, setBirthtime] = useState("");
+  const [birthplace, setBirthplace] = useState("");
   const [bloodType, setBloodType] = useState("");
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1287,6 +1289,8 @@ function KartePanel({ clientId, colors }: { clientId: number; colors: KarteColor
   useEffect(() => {
     if (data?.profile) {
       setBirthdate(data.profile.birthdate ?? "");
+      setBirthtime(data.profile.birthtime ?? "");
+      setBirthplace(data.profile.birthplace ?? "");
       setBloodType(data.profile.bloodType ?? "");
       setMemo(data.profile.memo ?? "");
     }
@@ -1295,7 +1299,7 @@ function KartePanel({ clientId, colors }: { clientId: number; colors: KarteColor
   async function handleSave() {
     setSaving(true);
     try {
-      await upsertMutation.mutateAsync({ clientId, birthdate: birthdate || null, bloodType: bloodType || null, memo: memo || null });
+      await upsertMutation.mutateAsync({ clientId, birthdate: birthdate || null, birthtime: birthtime || null, birthplace: birthplace || null, bloodType: bloodType || null, memo: memo || null });
       toast.success("カルテを保存しました");
       refetch();
     } catch {
@@ -1356,7 +1360,7 @@ function KartePanel({ clientId, colors }: { clientId: number; colors: KarteColor
 
       {open && (
         <div style={{ padding: "0 16px 16px" }}>
-          {/* 生年月日・血液型 */}
+          {/* 生年月日・出生時刻 */}
           <div className="grid grid-cols-2 gap-2 mb-2">
             <div>
               <div style={{ fontSize: "10px", color: colors.subText, marginBottom: "3px" }}>生年月日</div>
@@ -1366,6 +1370,30 @@ function KartePanel({ clientId, colors }: { clientId: number; colors: KarteColor
                 style={{ fontSize: "11px", padding: "5px 8px" }}
                 value={birthdate}
                 onChange={(e) => setBirthdate(e.target.value)}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: "10px", color: colors.subText, marginBottom: "3px" }}>出生時刻（任意）</div>
+              <input
+                type="time"
+                className="angelique-input"
+                style={{ fontSize: "11px", padding: "5px 8px" }}
+                value={birthtime}
+                onChange={(e) => setBirthtime(e.target.value)}
+              />
+            </div>
+          </div>
+          {/* 出生地・血液型 */}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <div style={{ fontSize: "10px", color: colors.subText, marginBottom: "3px" }}>出生地（任意）</div>
+              <input
+                type="text"
+                className="angelique-input"
+                style={{ fontSize: "11px", padding: "5px 8px" }}
+                value={birthplace}
+                onChange={(e) => setBirthplace(e.target.value)}
+                placeholder="東京都など"
               />
             </div>
             <div>

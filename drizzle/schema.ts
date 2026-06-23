@@ -178,6 +178,8 @@ export const clientProfiles = mysqlTable("client_profiles", {
   id: int("id").autoincrement().primaryKey(),
   clientId: int("clientId").notNull(),
   birthdate: varchar("birthdate", { length: 10 }),
+  birthtime: varchar("birthtime", { length: 8 }),
+  birthplace: varchar("birthplace", { length: 100 }),
   bloodType: varchar("bloodType", { length: 5 }),
   memo: text("memo"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
