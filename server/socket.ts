@@ -179,6 +179,14 @@ export function initSocketIO(httpServer: HttpServer) {
     // Chat message (supports optional image)
     socket.on("send_message", async ({ sessionId, sender, content, imageUrl, imageKey }) => {
       try {
+        // base64 画像のサイズ制限（500KB）
+        if (imageUrl && imageUrl.startsWith("data:")) {
+          const byteSize = Math.floor(imageUrl.length * 0.75);
+          if (byteSize > 500 * 1024) {
+            console.warn("[Socket.io] imageUrl too large, rejected:", byteSize, "bytes");
+            return;
+          }
+        }
         const msg = await createMessage({ sessionId, sender, content, imageUrl, imageKey });
         const room = `session_${sessionId}`;
         io?.to(room).emit("new_message", msg);

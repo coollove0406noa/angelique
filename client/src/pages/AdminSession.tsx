@@ -135,7 +135,6 @@ export default function AdminSession() {
     onError: (e) => toast.error(e.message),
   });
   const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
-  const uploadImageMutation = trpc.messages.uploadImage.useMutation();
   const { data: customStamps } = trpc.stamps.list.useQuery(
     { fortuneTellerId: fortuneTeller?.fortuneTellerId ?? 0 },
     { enabled: isAuthenticated && !!fortuneTeller }
@@ -421,37 +420,46 @@ export default function AdminSession() {
     toast.success("送信しました");
   }, [sessionId]);
 
-  // 画像リサイズ（長辺800px・JPEG 0.7 に圧縮）
+  // 画像リサイズ（長辺800px・JPEG 0.7）
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
+
       img.onload = () => {
+        URL.revokeObjectURL(url);
         const maxSize = 800;
-        let w = img.width;
-        let h = img.height;
-        if (w > maxSize || h > maxSize) {
-          if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
-          else { w = Math.round(w * maxSize / h); h = maxSize; }
+        let { width, height } = img;
+
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = Math.round(height * maxSize / width);
+            width = maxSize;
+          } else {
+            width = Math.round(width * maxSize / height);
+            height = maxSize;
+          }
         }
+
         const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
+        canvas.width = width;
+        canvas.height = height;
         const ctx = canvas.getContext("2d");
         if (!ctx) { reject(new Error("canvas error")); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
+        ctx.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL("image/jpeg", 0.7));
       };
+
       img.onerror = () => {
         URL.revokeObjectURL(url);
         reject(new Error("image load error"));
       };
+
       img.src = url;
     });
   };
 
-  // 画像送信
+  // 画像送信（S3不使用・base64をソケット経由でDBへ直接保存）
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -459,20 +467,12 @@ export default function AdminSession() {
 
     setUploadingImage(true);
     try {
-      const base64Data = await resizeImage(file);
-      const result = await uploadImageMutation.mutateAsync({
-        sessionId,
-        sender: "admin",
-        base64Data,
-        mimeType: "image/jpeg",
-        fileName: file.name,
-      });
+      const imageUrl = await resizeImage(file);
       socketRef.current?.emit("send_message", {
         sessionId,
         sender: "admin",
         content: "📷 画像を送信しました",
-        imageUrl: result.url,
-        imageKey: result.key,
+        imageUrl,
       });
     } catch (err) {
       console.error("[AdminSession] 画像送信エラー:", err);
@@ -480,7 +480,7 @@ export default function AdminSession() {
     } finally {
       setUploadingImage(false);
     }
-  }, [sessionId, uploadImageMutation]);
+  }, [sessionId]);
 
   const handleSendExtensionLink = useCallback((minutes: number) => {
     const settings = storeSettings ?? [];
