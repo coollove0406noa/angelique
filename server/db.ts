@@ -5,6 +5,8 @@ import {
   adminAuth,
   appSettings,
   carryoverRecords,
+  clientProfiles,
+  clientRelations,
   clients,
   fortuneTellers,
   InsertFortuneTeller,
@@ -579,4 +581,57 @@ export async function deleteStamp(id: number, fortuneTellerId: number) {
   await db
     .delete(stamps)
     .where(and(eq(stamps.id, id), eq(stamps.fortuneTellerId, fortuneTellerId)));
+}
+
+// ── Client Profile (カルテ) ────────────────────────────────────────────────
+
+export async function getClientProfile(clientId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [profile, relations] = await Promise.all([
+    db.select().from(clientProfiles).where(eq(clientProfiles.clientId, clientId)).limit(1),
+    db.select().from(clientRelations).where(eq(clientRelations.clientId, clientId)).orderBy(clientRelations.createdAt),
+  ]);
+  return { profile: profile[0] ?? null, relations };
+}
+
+export async function upsertClientProfile(data: {
+  clientId: number;
+  birthdate?: string | null;
+  bloodType?: string | null;
+  memo?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const existing = await db.select({ id: clientProfiles.id }).from(clientProfiles).where(eq(clientProfiles.clientId, data.clientId)).limit(1);
+  if (existing.length > 0) {
+    await db.update(clientProfiles).set({ birthdate: data.birthdate ?? null, bloodType: data.bloodType ?? null, memo: data.memo ?? null }).where(eq(clientProfiles.clientId, data.clientId));
+  } else {
+    await db.insert(clientProfiles).values({ clientId: data.clientId, birthdate: data.birthdate ?? null, bloodType: data.bloodType ?? null, memo: data.memo ?? null });
+  }
+}
+
+export async function addClientRelation(data: {
+  clientId: number;
+  relation?: string | null;
+  name?: string | null;
+  birthdate?: string | null;
+  memo?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(clientRelations).values({
+    clientId: data.clientId,
+    relation: data.relation ?? null,
+    name: data.name ?? null,
+    birthdate: data.birthdate ?? null,
+    memo: data.memo ?? null,
+  });
+  return result[0].insertId as number;
+}
+
+export async function deleteClientRelation(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(clientRelations).where(eq(clientRelations.id, id));
 }

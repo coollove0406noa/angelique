@@ -1093,6 +1093,9 @@ export default function AdminSession() {
                 </button>
               </div>
             )}
+
+            {/* カルテパネル */}
+            {session && <KartePanel clientId={session.clientId} colors={colors} />}
           </div>
         </div>
       </div>
@@ -1255,6 +1258,209 @@ export default function AdminSession() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── セッション中カルテパネル ──────────────────────────────────────────────
+
+type KarteColors = { text: string; subText: string; border: string; main: string; accent: string };
+
+function KartePanel({ clientId, colors }: { clientId: number; colors: KarteColors }) {
+  const [open, setOpen] = useState(false);
+  const { data, refetch } = trpc.clientProfile.get.useQuery({ clientId }, { enabled: open });
+
+  const [birthdate, setBirthdate] = useState("");
+  const [bloodType, setBloodType] = useState("");
+  const [memo, setMemo] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showRelationForm, setShowRelationForm] = useState(false);
+  const [newRel, setNewRel] = useState({ relation: "", name: "", birthdate: "", memo: "" });
+  const [addingRel, setAddingRel] = useState(false);
+
+  const upsertMutation = trpc.clientProfile.upsert.useMutation();
+  const addRelationMutation = trpc.clientProfile.addRelation.useMutation();
+  const deleteRelationMutation = trpc.clientProfile.deleteRelation.useMutation();
+
+  useEffect(() => {
+    if (data?.profile) {
+      setBirthdate(data.profile.birthdate ?? "");
+      setBloodType(data.profile.bloodType ?? "");
+      setMemo(data.profile.memo ?? "");
+    }
+  }, [data]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await upsertMutation.mutateAsync({ clientId, birthdate: birthdate || null, bloodType: bloodType || null, memo: memo || null });
+      toast.success("カルテを保存しました");
+      refetch();
+    } catch {
+      toast.error("保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddRelation() {
+    if (!newRel.name && !newRel.relation) { toast.error("続柄または名前を入力してください"); return; }
+    setAddingRel(true);
+    try {
+      await addRelationMutation.mutateAsync({ clientId, ...newRel });
+      setNewRel({ relation: "", name: "", birthdate: "", memo: "" });
+      setShowRelationForm(false);
+      refetch();
+    } catch {
+      toast.error("追加に失敗しました");
+    } finally {
+      setAddingRel(false);
+    }
+  }
+
+  async function handleDeleteRelation(id: number) {
+    try {
+      await deleteRelationMutation.mutateAsync({ id });
+      refetch();
+    } catch {
+      toast.error("削除に失敗しました");
+    }
+  }
+
+  const relations = data?.relations ?? [];
+
+  return (
+    <div className="angelique-card" style={{ overflow: "hidden" }}>
+      {/* アコーディオンヘッダー */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontSize: "13px",
+          fontWeight: 600,
+          color: colors.text,
+        }}
+      >
+        <span>📋 カルテ</span>
+        <span style={{ fontSize: "16px", color: colors.subText }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding: "0 16px 16px" }}>
+          {/* 生年月日・血液型 */}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <div style={{ fontSize: "10px", color: colors.subText, marginBottom: "3px" }}>生年月日</div>
+              <input
+                type="date"
+                className="angelique-input"
+                style={{ fontSize: "11px", padding: "5px 8px" }}
+                value={birthdate}
+                onChange={(e) => setBirthdate(e.target.value)}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: "10px", color: colors.subText, marginBottom: "3px" }}>血液型</div>
+              <select
+                className="angelique-input"
+                style={{ fontSize: "11px", padding: "5px 8px" }}
+                value={bloodType}
+                onChange={(e) => setBloodType(e.target.value)}
+              >
+                <option value="">-</option>
+                <option value="A">A型</option>
+                <option value="B">B型</option>
+                <option value="O">O型</option>
+                <option value="AB">AB型</option>
+              </select>
+            </div>
+          </div>
+
+          {/* メモ */}
+          <div style={{ fontSize: "10px", color: colors.subText, marginBottom: "3px" }}>メモ</div>
+          <textarea
+            className="angelique-input"
+            rows={3}
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="鑑定メモ..."
+            style={{ fontSize: "12px", resize: "vertical", marginBottom: "8px" }}
+          />
+
+          <button
+            className="angelique-btn"
+            style={{ fontSize: "12px", padding: "6px 14px", width: "100%", justifyContent: "center", marginBottom: "12px" }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "保存中..." : "保存"}
+          </button>
+
+          {/* 区切り */}
+          <div style={{ borderTop: `1px solid ${colors.border}`, marginBottom: "10px" }} />
+
+          {/* 関係者 */}
+          <div className="flex items-center justify-between mb-2">
+            <div style={{ fontSize: "11px", fontWeight: 600, color: colors.text }}>関係者</div>
+            <button
+              className="angelique-btn-outline"
+              style={{ fontSize: "10px", padding: "2px 8px" }}
+              onClick={() => setShowRelationForm((v) => !v)}
+            >
+              {showRelationForm ? "✕" : "+ 追加"}
+            </button>
+          </div>
+
+          {showRelationForm && (
+            <div style={{ marginBottom: "8px", padding: "8px", background: colors.main, borderRadius: "8px", border: `1px solid ${colors.border}` }}>
+              <div className="grid grid-cols-2 gap-1 mb-1">
+                <input className="angelique-input" style={{ fontSize: "11px", padding: "4px 6px" }} placeholder="続柄" value={newRel.relation} onChange={(e) => setNewRel((r) => ({ ...r, relation: e.target.value }))} />
+                <input className="angelique-input" style={{ fontSize: "11px", padding: "4px 6px" }} placeholder="名前" value={newRel.name} onChange={(e) => setNewRel((r) => ({ ...r, name: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-1 mb-2">
+                <input type="date" className="angelique-input" style={{ fontSize: "11px", padding: "4px 6px" }} value={newRel.birthdate} onChange={(e) => setNewRel((r) => ({ ...r, birthdate: e.target.value }))} />
+                <input className="angelique-input" style={{ fontSize: "11px", padding: "4px 6px" }} placeholder="メモ" value={newRel.memo} onChange={(e) => setNewRel((r) => ({ ...r, memo: e.target.value }))} />
+              </div>
+              <button className="angelique-btn" style={{ fontSize: "11px", padding: "4px 10px" }} onClick={handleAddRelation} disabled={addingRel}>
+                {addingRel ? "追加中..." : "追加"}
+              </button>
+            </div>
+          )}
+
+          {relations.length === 0 ? (
+            <p style={{ fontSize: "11px", color: colors.subText }}>関係者なし</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {relations.map((rel) => (
+                <div
+                  key={rel.id}
+                  style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "6px 8px", background: colors.main, borderRadius: "6px", border: `1px solid ${colors.border}`, gap: "6px" }}
+                >
+                  <div style={{ fontSize: "11px", color: colors.text, flex: 1 }}>
+                    {rel.relation && <span style={{ color: colors.accent, fontWeight: 600, marginRight: "4px" }}>{rel.relation}</span>}
+                    {rel.name ?? "—"}
+                    {rel.birthdate && <span style={{ color: colors.subText, marginLeft: "4px" }}>{rel.birthdate}</span>}
+                    {rel.memo && <div style={{ color: colors.subText, fontSize: "10px" }}>{rel.memo}</div>}
+                  </div>
+                  <button
+                    onClick={() => handleDeleteRelation(rel.id)}
+                    style={{ fontSize: "10px", color: colors.subText, background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: "0 2px" }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

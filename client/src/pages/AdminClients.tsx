@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import AngeliqueHeader from "@/components/AngeliqueHeader";
@@ -28,6 +28,7 @@ export default function AdminClients() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showClientForm, setShowClientForm] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
+  const [karteClient, setKarteClient] = useState<Client | null>(null);
   const [clientForm, setClientForm] = useState({
     name: "",
     email: "",
@@ -165,6 +166,15 @@ export default function AdminClients() {
           </div>
         )}
 
+        {/* Karte Modal */}
+        {karteClient && (
+          <KarteModal
+            client={karteClient}
+            colors={colors}
+            onClose={() => setKarteClient(null)}
+          />
+        )}
+
         {/* Clients Grid */}
         {filteredClients.length === 0 ? (
           <div className="angelique-card p-12 text-center">
@@ -181,6 +191,7 @@ export default function AdminClients() {
                 onEdit={() => openEdit(client as Client)}
                 onDelete={() => { if (confirm(`${client.name}を削除しますか？`)) deleteClient.mutate({ id: client.id }); }}
                 onViewHistory={() => navigate(`/admin/${slug}/clients/${client.id}`)}
+                onOpenKarte={() => setKarteClient(client as Client)}
               />
             ))}
           </div>
@@ -196,12 +207,14 @@ function ClientCard({
   onEdit,
   onDelete,
   onViewHistory,
+  onOpenKarte,
 }: {
   client: Client;
   slug: string;
   onEdit: () => void;
   onDelete: () => void;
   onViewHistory: () => void;
+  onOpenKarte: () => void;
 }) {
   const { colors } = useBrand();
 
@@ -228,13 +241,20 @@ function ClientCard({
           )}
         </div>
 
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
           <button
             className="angelique-btn-outline"
             style={{ padding: "6px 14px", fontSize: "12px" }}
             onClick={onViewHistory}
           >
             履歴
+          </button>
+          <button
+            className="angelique-btn-outline"
+            style={{ padding: "6px 14px", fontSize: "12px" }}
+            onClick={onOpenKarte}
+          >
+            📋 カルテ
           </button>
           <button
             className="angelique-btn-outline"
@@ -250,6 +270,211 @@ function ClientCard({
           >
             削除
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── カルテモーダル ────────────────────────────────────────────────────────
+
+type KarteColors = ReturnType<typeof useBrand>["colors"];
+
+function KarteModal({ client, colors, onClose }: { client: Client; colors: KarteColors; onClose: () => void }) {
+  const { data, refetch } = trpc.clientProfile.get.useQuery({ clientId: client.id });
+
+  const [birthdate, setBirthdate] = useState("");
+  const [bloodType, setBloodType] = useState("");
+  const [memo, setMemo] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [newRelation, setNewRelation] = useState({ relation: "", name: "", birthdate: "", memo: "" });
+  const [addingRelation, setAddingRelation] = useState(false);
+  const [showRelationForm, setShowRelationForm] = useState(false);
+
+  const upsertMutation = trpc.clientProfile.upsert.useMutation();
+  const addRelationMutation = trpc.clientProfile.addRelation.useMutation();
+  const deleteRelationMutation = trpc.clientProfile.deleteRelation.useMutation();
+
+  useEffect(() => {
+    if (data?.profile) {
+      setBirthdate(data.profile.birthdate ?? "");
+      setBloodType(data.profile.bloodType ?? "");
+      setMemo(data.profile.memo ?? "");
+    }
+  }, [data]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await upsertMutation.mutateAsync({ clientId: client.id, birthdate: birthdate || null, bloodType: bloodType || null, memo: memo || null });
+      toast.success("カルテを保存しました");
+      refetch();
+    } catch {
+      toast.error("保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddRelation() {
+    if (!newRelation.name && !newRelation.relation) { toast.error("続柄または名前を入力してください"); return; }
+    setAddingRelation(true);
+    try {
+      await addRelationMutation.mutateAsync({ clientId: client.id, ...newRelation });
+      setNewRelation({ relation: "", name: "", birthdate: "", memo: "" });
+      setShowRelationForm(false);
+      refetch();
+    } catch {
+      toast.error("追加に失敗しました");
+    } finally {
+      setAddingRelation(false);
+    }
+  }
+
+  async function handleDeleteRelation(id: number) {
+    if (!confirm("この関係者を削除しますか？")) return;
+    try {
+      await deleteRelationMutation.mutateAsync({ id });
+      refetch();
+    } catch {
+      toast.error("削除に失敗しました");
+    }
+  }
+
+  const relations = data?.relations ?? [];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(107,91,88,0.2)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="angelique-card w-full mx-4 overflow-y-auto"
+        style={{ maxWidth: "540px", maxHeight: "90vh", padding: "28px" }}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "22px", color: colors.text }}>
+            📋 {client.name}様のカルテ
+          </h3>
+          <button onClick={onClose} style={{ fontSize: "20px", color: colors.subText, background: "none", border: "none", cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* プロフィール */}
+        <div className="mb-5">
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="angelique-label">生年月日</label>
+              <input type="date" className="angelique-input" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} />
+            </div>
+            <div>
+              <label className="angelique-label">血液型</label>
+              <select className="angelique-input" value={bloodType} onChange={(e) => setBloodType(e.target.value)}>
+                <option value="">-</option>
+                <option value="A">A型</option>
+                <option value="B">B型</option>
+                <option value="O">O型</option>
+                <option value="AB">AB型</option>
+              </select>
+            </div>
+          </div>
+          <div className="mb-3">
+            <label className="angelique-label">メモ・備考</label>
+            <textarea
+              className="angelique-input"
+              rows={4}
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="鑑定メモ、特記事項など..."
+              style={{ resize: "vertical" }}
+            />
+          </div>
+          <button className="angelique-btn" onClick={handleSave} disabled={saving}>
+            {saving ? "保存中..." : "プロフィールを保存"}
+          </button>
+        </div>
+
+        {/* 区切り */}
+        <div style={{ borderTop: `1px solid ${colors.border}`, margin: "20px 0" }} />
+
+        {/* 関係者一覧 */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div style={{ fontSize: "13px", fontWeight: 600, color: colors.text }}>関係者</div>
+            <button
+              className="angelique-btn-outline"
+              style={{ fontSize: "12px", padding: "4px 12px" }}
+              onClick={() => setShowRelationForm((v) => !v)}
+            >
+              {showRelationForm ? "キャンセル" : "+ 追加"}
+            </button>
+          </div>
+
+          {showRelationForm && (
+            <div
+              className="mb-4 p-3"
+              style={{ background: colors.main, borderRadius: "8px", border: `1px solid ${colors.border}` }}
+            >
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="angelique-label">続柄</label>
+                  <input className="angelique-input" value={newRelation.relation} onChange={(e) => setNewRelation((r) => ({ ...r, relation: e.target.value }))} placeholder="夫・彼氏・友人..." />
+                </div>
+                <div>
+                  <label className="angelique-label">名前</label>
+                  <input className="angelique-input" value={newRelation.name} onChange={(e) => setNewRelation((r) => ({ ...r, name: e.target.value }))} placeholder="田中 太郎" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="angelique-label">生年月日</label>
+                  <input type="date" className="angelique-input" value={newRelation.birthdate} onChange={(e) => setNewRelation((r) => ({ ...r, birthdate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="angelique-label">メモ</label>
+                  <input className="angelique-input" value={newRelation.memo} onChange={(e) => setNewRelation((r) => ({ ...r, memo: e.target.value }))} placeholder="任意メモ" />
+                </div>
+              </div>
+              <button className="angelique-btn" style={{ fontSize: "12px" }} onClick={handleAddRelation} disabled={addingRelation}>
+                {addingRelation ? "追加中..." : "追加する"}
+              </button>
+            </div>
+          )}
+
+          {relations.length === 0 && !showRelationForm && (
+            <p style={{ fontSize: "12px", color: colors.subText }}>関係者が登録されていません</p>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {relations.map((rel) => (
+              <div
+                key={rel.id}
+                className="flex items-center justify-between gap-3 p-3"
+                style={{ background: colors.main, borderRadius: "8px", border: `1px solid ${colors.border}` }}
+              >
+                <div>
+                  <span style={{ fontSize: "12px", color: colors.accent, fontWeight: 600, marginRight: "6px" }}>
+                    {rel.relation ?? "—"}
+                  </span>
+                  <span style={{ fontSize: "13px", color: colors.text }}>{rel.name ?? "—"}</span>
+                  {rel.birthdate && (
+                    <span style={{ fontSize: "11px", color: colors.subText, marginLeft: "8px" }}>{rel.birthdate}</span>
+                  )}
+                  {rel.memo && (
+                    <div style={{ fontSize: "11px", color: colors.subText, marginTop: "2px" }}>{rel.memo}</div>
+                  )}
+                </div>
+                <button
+                  className="angelique-btn-danger"
+                  style={{ fontSize: "11px", padding: "3px 10px", flexShrink: 0 }}
+                  onClick={() => handleDeleteRelation(rel.id)}
+                >
+                  削除
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -36,6 +36,10 @@ import {
   updateClient,
   updateFortuneTeller,
   updateSession,
+  getClientProfile,
+  upsertClientProfile,
+  addClientRelation,
+  deleteClientRelation,
 } from "./db";
 import { sendSessionInviteEmail } from "./mailer";
 import { storagePut } from "./storage";
@@ -800,6 +804,48 @@ const stampsRouter = router({
     }),
 });
 
+// ── Client Profile (カルテ) ────────────────────────────────────────────────
+
+const clientProfileRouter = router({
+  get: publicProcedure
+    .input(z.object({ clientId: z.number() }))
+    .query(async ({ input }) => {
+      return getClientProfile(input.clientId);
+    }),
+
+  upsert: publicProcedure
+    .input(z.object({
+      clientId: z.number(),
+      birthdate: z.string().nullable().optional(),
+      bloodType: z.string().nullable().optional(),
+      memo: z.string().nullable().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await upsertClientProfile(input);
+      return { success: true };
+    }),
+
+  addRelation: publicProcedure
+    .input(z.object({
+      clientId: z.number(),
+      relation: z.string().nullable().optional(),
+      name: z.string().nullable().optional(),
+      birthdate: z.string().nullable().optional(),
+      memo: z.string().nullable().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const id = await addClientRelation(input);
+      return { id };
+    }),
+
+  deleteRelation: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteClientRelation(input.id);
+      return { success: true };
+    }),
+});
+
 // ── App Router ─────────────────────────────────────────────────────────────
 
 export const appRouter = router({
@@ -823,6 +869,7 @@ export const appRouter = router({
   stamps: stampsRouter,
   email: emailRouter,
   agora: agoraRouter,
+  clientProfile: clientProfileRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -172,6 +172,38 @@ export type AppSetting = typeof appSettings.$inferSelect;
 export type InsertAppSetting = typeof appSettings.$inferInsert;
 
 /**
+ * Client profile (karute) — one row per client
+ */
+export const clientProfiles = mysqlTable("client_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  birthdate: varchar("birthdate", { length: 10 }),
+  bloodType: varchar("bloodType", { length: 5 }),
+  memo: text("memo"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ClientProfile = typeof clientProfiles.$inferSelect;
+export type InsertClientProfile = typeof clientProfiles.$inferInsert;
+
+/**
+ * Client relations (関係者) — multiple rows per client
+ */
+export const clientRelations = mysqlTable("client_relations", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  relation: varchar("relation", { length: 50 }),
+  name: varchar("name", { length: 100 }),
+  birthdate: varchar("birthdate", { length: 10 }),
+  memo: varchar("memo", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ClientRelation = typeof clientRelations.$inferSelect;
+export type InsertClientRelation = typeof clientRelations.$inferInsert;
+
+/**
  * Custom stamps per fortune teller
  */
 export const stamps = mysqlTable("stamps", {
