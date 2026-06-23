@@ -421,29 +421,35 @@ export default function AdminSession() {
     toast.success("送信しました");
   }, [sessionId]);
 
-  // 画像リサイズ（長辺1200px・JPEG 0.8 に圧縮）
-  const resizeImage = useCallback((file: File): Promise<string> => {
+  // 画像リサイズ（長辺800px・JPEG 0.7 に圧縮）
+  const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
-        URL.revokeObjectURL(url);
-        const MAX = 1200;
-        let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width >= height) { height = Math.round(height * MAX / width); width = MAX; }
-          else { width = Math.round(width * MAX / height); height = MAX; }
+        const maxSize = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxSize || h > maxSize) {
+          if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+          else { w = Math.round(w * maxSize / h); h = maxSize; }
         }
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.8));
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("canvas error")); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
       };
-      img.onerror = reject;
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("image load error"));
+      };
       img.src = url;
     });
-  }, []);
+  };
 
   // 画像送信
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -468,12 +474,13 @@ export default function AdminSession() {
         imageUrl: result.url,
         imageKey: result.key,
       });
-    } catch {
+    } catch (err) {
+      console.error("[AdminSession] 画像送信エラー:", err);
       toast.error("画像の送信に失敗しました");
     } finally {
       setUploadingImage(false);
     }
-  }, [sessionId, uploadImageMutation, resizeImage]);
+  }, [sessionId, uploadImageMutation]);
 
   const handleSendExtensionLink = useCallback((minutes: number) => {
     const settings = storeSettings ?? [];
