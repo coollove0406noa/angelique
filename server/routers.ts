@@ -41,7 +41,7 @@ import {
   addClientRelation,
   deleteClientRelation,
 } from "./db";
-import { sendSessionInviteEmail } from "./mailer";
+import { sendSessionInviteEmail, sendSessionLog } from "./mailer";
 import { storagePut } from "./storage";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -522,6 +522,42 @@ const sessionsRouter = router({
         ...(startedAt !== undefined ? { startedAt: startedAt ? new Date(startedAt) : null } : {}),
         ...(endedAt !== undefined ? { endedAt: endedAt ? new Date(endedAt) : null } : {}),
       });
+
+      // セッション完了時にチャットログをメール送信（失敗してもエラーにしない）
+      if (input.status === "completed") {
+        try {
+          const [session, msgs] = await Promise.all([
+            getSessionById(id),
+            getMessagesBySession(id),
+          ]);
+          if (session) {
+            const [client, ft] = await Promise.all([
+              getClientById(session.clientId),
+              getFortuneTellerById(session.fortuneTellerId),
+            ]);
+            if (client?.email) {
+              await sendSessionLog({
+                toEmail: client.email,
+                toName: client.name,
+                brandName: ft?.brandName ?? "angelique",
+                sessionDate: session.scheduledAt,
+                sessionType: session.sessionType,
+                messages: msgs.map((m) => ({
+                  sender: m.sender as "admin" | "client" | "system",
+                  content: m.content,
+                  imageUrl: m.imageUrl ?? null,
+                  createdAt: m.createdAt,
+                })),
+                mainColor: ft?.themeColor ?? "#f3e7e5",
+                accentColor: ft?.accentColor ?? "#c9a8a3",
+              });
+            }
+          }
+        } catch (err) {
+          console.error("[sessions.update] Failed to send session log email:", err);
+        }
+      }
+
       return { success: true };
     }),
 
