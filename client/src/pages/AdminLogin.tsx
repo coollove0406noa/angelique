@@ -8,28 +8,21 @@ interface AdminLoginProps {
   onSuccess: () => void;
 }
 
-export default function AdminLogin({ slug, onSuccess }: AdminLoginProps) {
+export default function AdminLogin({ slug }: AdminLoginProps) {
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const { brandName, colors } = useBrand();
 
   const loginMutation = trpc.admin.login.useMutation({
     onSuccess: () => {
-      // Set-Cookie は onSuccess 到達時点で既にブラウザに保存済み
-      toast.success("ログインしました");
-      onSuccess();
-      window.location.href = `/admin/${slug}`;
+      window.location.replace(`/admin/${slug}`);
     },
-    onError: (err) => {
-      toast.error(err.message || "ログインに失敗しました");
-      setLoading(false);
+    onError: () => {
+      toast.error("パスワードが違います");
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) return;
-    setLoading(true);
     loginMutation.mutate({ slug, password });
   };
 
@@ -66,7 +59,7 @@ export default function AdminLogin({ slug, onSuccess }: AdminLoginProps) {
           管理者ログイン
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleLogin}>
           <div style={{ marginBottom: "20px", textAlign: "left" }}>
             <label className="angelique-label">パスワード</label>
             <input
@@ -81,7 +74,7 @@ export default function AdminLogin({ slug, onSuccess }: AdminLoginProps) {
           <button
             type="submit"
             className="angelique-btn w-full justify-center"
-            disabled={loading || !password.trim()}
+            disabled={loginMutation.isPending || !password.trim()}
             style={{
               width: "100%",
               justifyContent: "center",
@@ -89,7 +82,7 @@ export default function AdminLogin({ slug, onSuccess }: AdminLoginProps) {
               borderColor: colors.accent,
             }}
           >
-            {loading ? "確認中..." : "ログイン"}
+            {loginMutation.isPending ? "確認中..." : "ログイン"}
           </button>
         </form>
       </div>
