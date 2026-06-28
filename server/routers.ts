@@ -50,14 +50,14 @@ import { publicProcedure, router } from "./_core/trpc";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** 本番(HTTPS)では sameSite: "none" + secure: true、開発では lax + non-secure */
+/** 本番(HTTPS)では secure: true + sameSite: "lax"、開発では secure: false + sameSite: "lax" */
 function authCookieOptions() {
   const isProd = process.env.NODE_ENV === "production";
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: (isProd ? "none" : "lax") as "none" | "lax",
-    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: "lax" as const,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7日
     path: "/",
   };
 }
