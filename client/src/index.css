@@ -324,10 +324,10 @@
   overflow-wrap: break-word;
   white-space: pre-wrap;
 }
-/* お客様側の吹き出し（くすみグリーン系 - AdminSession内で左寄せ） */
+/* お客様側の吹き出し（ライトグレー - AdminSession内で左寄せ） */
 .chat-bubble-client {
-  background: #c8dfc8;
-  color: #2a3e2a;
+  background: #E8E8E8;
+  color: #333333;
   border-radius: 18px 18px 18px 4px;
   padding: 10px 16px;
   max-width: 78%;
