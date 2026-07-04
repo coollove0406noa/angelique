@@ -2,11 +2,9 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 const CDN = "https://d2xsxph8kpxj0f.cloudfront.net/310519663226441831/B6EzJ6NeuYcNikyfaASeGg";
 
-// ── BGM 3曲 ──────────────────────────────────────────────────────────────
+// ── BGM ──────────────────────────────────────────────────────────────────
 const BGM_TRACKS = [
-  `${CDN}/bgm1_82b9bf72.wav`,
-  `${CDN}/bgm2_98e4b11a.wav`,
-  `${CDN}/bgm3_9f2c6999.wav`,
+  `/Moon鳥と清流MP3.mp3`,
 ];
 
 // ── タロットカードデータ（大アルカナ22枚・実画像付き）──────────────────
@@ -320,7 +318,7 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           className="wr-bgm-btn"
           aria-label={bgmEnabled ? "BGMを停止" : "BGMを再生"}
         >
-          {bgmEnabled ? "🔊 BGM ON" : "🔇 BGM OFF"}
+          {bgmEnabled ? "🔇 BGMを止める" : "🎵 BGMを流す"}
         </button>
 
         {/* 音声・ビデオ鑑定のみ：マイクテスト */}
