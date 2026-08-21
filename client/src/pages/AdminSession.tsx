@@ -1048,6 +1048,13 @@ export default function AdminSession() {
                   role="admin"
                   isSessionActive={timerStatus === "active" || timerStatus === "paused"}
                   preConnect={true}
+                  remoteIsScreenSharing={remoteScreenSharing}
+                  onScreenShareChange={(sharing) => {
+                    socketRef.current?.emit(
+                      sharing ? "screen_share_start" : "screen_share_stop",
+                      { sessionId }
+                    );
+                  }}
                 />
               </>
             )}

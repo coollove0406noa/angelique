@@ -783,6 +783,13 @@ export default function ClientSession() {
             sessionId={session.id}
             role="client"
             isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+            remoteIsScreenSharing={remoteScreenSharing}
+            onScreenShareChange={(sharing) => {
+              socketRef.current?.emit(
+                sharing ? "screen_share_start" : "screen_share_stop",
+                { sessionId: session.id }
+              );
+            }}
           />
         </div>
       )}

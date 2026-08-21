@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
-import { Mic, MicOff, Phone, PhoneOff, AlertCircle, CheckCircle, Loader2, Radio } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, AlertCircle, CheckCircle, Loader2, Radio, Monitor, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -14,6 +14,8 @@ interface VoiceCallProps {
   isSessionActive: boolean;
   /** trueのとき：セッション開始前にチャンネルへミュートで事前接続する（管理者向け） */
   preConnect?: boolean;
+  onScreenShareChange?: (isSharing: boolean) => void;
+  remoteIsScreenSharing?: boolean;
 }
 
 type CallStatus =
@@ -40,6 +42,8 @@ export default function VoiceCall({
   role,
   isSessionActive,
   preConnect = false,
+  onScreenShareChange,
+  remoteIsScreenSharing,
 }: VoiceCallProps) {
   const [callStatus, setCallStatus] = useState<CallStatus>("idle");
   const [preConnectStatus, setPreConnectStatus] = useState<PreConnectStatus>("idle");
@@ -49,6 +53,8 @@ export default function VoiceCall({
   const [callDuration, setCallDuration] = useState(0);
   const [errorDetail, setErrorDetail] = useState("");
   const [showStartHint, setShowStartHint] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [remoteHasVideo, setRemoteHasVideo] = useState(false);
   /** マイク送信音量（0〜200 / デフォルト200） */
   const [micGain, setMicGainState] = useState(200);
   /** リモート受信音量 state（スライダーUI用） */
@@ -56,6 +62,9 @@ export default function VoiceCall({
 
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
+  const screenVideoTrackRef = useRef<import("agora-rtc-sdk-ng").ILocalVideoTrack | null>(null);
+  const remoteVideoTrackRef = useRef<import("agora-rtc-sdk-ng").IRemoteVideoTrack | null>(null);
+  const remoteVideoContainerRef = useRef<HTMLDivElement | null>(null);
   const callStartTimeRef = useRef<number | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // 事前接続でセッション開始待ち状態か
@@ -117,12 +126,20 @@ export default function VoiceCall({
           setRemoteUserCount((prev) => prev + 1);
           toast.success(role === "admin" ? "お客様が通話に参加しました" : "占い師が通話に参加しました");
         }
+        if (mediaType === "video" && user.videoTrack) {
+          remoteVideoTrackRef.current = user.videoTrack;
+          setRemoteHasVideo(true);
+        }
       });
 
       rtcClient.on("user-unpublished", (user, mediaType) => {
         if (mediaType === "audio") {
           remoteTracksRef.current.delete(user.uid);
           setRemoteUserCount((prev) => Math.max(0, prev - 1));
+        }
+        if (mediaType === "video") {
+          remoteVideoTrackRef.current = null;
+          setRemoteHasVideo(false);
         }
       });
 
@@ -356,10 +373,58 @@ export default function VoiceCall({
     }
   }, [preConnect, isSessionActive, preConnectStatus, preConnectToChannel]);
 
+  // ── 画面共有停止 ─────────────────────────────────────────────────────────
+  const stopScreenShare = useCallback(async () => {
+    if (!screenVideoTrackRef.current) return;
+    try {
+      await clientRef.current?.unpublish([screenVideoTrackRef.current]);
+    } catch {}
+    screenVideoTrackRef.current.stop();
+    screenVideoTrackRef.current.close();
+    screenVideoTrackRef.current = null;
+    setIsScreenSharing(false);
+    onScreenShareChange?.(false);
+  }, [onScreenShareChange]);
+
+  // ── 画面共有開始・停止トグル ──────────────────────────────────────────────
+  const toggleScreenShare = useCallback(async () => {
+    if (isScreenSharing) {
+      stopScreenShare();
+      return;
+    }
+    try {
+      const sdk = await loadAgoraSDK();
+      const result = await sdk.createScreenVideoTrack({ encoderConfig: "1080p_1" }, "disable");
+      const track = Array.isArray(result) ? result[0] : result;
+      screenVideoTrackRef.current = track;
+      await clientRef.current?.publish([track]);
+      setIsScreenSharing(true);
+      onScreenShareChange?.(true);
+      track.on("track-ended", () => stopScreenShare());
+    } catch (err: unknown) {
+      const e = err as Error;
+      if (e.name === "NotAllowedError" || e.message?.includes("Permission denied")) return;
+      toast.error("画面共有を開始できませんでした");
+      if (screenVideoTrackRef.current) {
+        screenVideoTrackRef.current.stop();
+        screenVideoTrackRef.current.close();
+        screenVideoTrackRef.current = null;
+      }
+      setIsScreenSharing(false);
+      onScreenShareChange?.(false);
+    }
+  }, [isScreenSharing, loadAgoraSDK, onScreenShareChange, stopScreenShare]);
+
   // ── 通話終了 ──────────────────────────────────────────────────────────────
   const endCall = useCallback(async () => {
     preConnectedWaitingRef.current = false;
     try {
+      if (screenVideoTrackRef.current) {
+        await clientRef.current?.unpublish([screenVideoTrackRef.current]).catch(() => {});
+        screenVideoTrackRef.current.stop();
+        screenVideoTrackRef.current.close();
+        screenVideoTrackRef.current = null;
+      }
       if (localAudioTrackRef.current) {
         localAudioTrackRef.current.stop();
         localAudioTrackRef.current.close();
@@ -379,6 +444,8 @@ export default function VoiceCall({
     setReceiveOnly(false);
     setRemoteUserCount(0);
     setErrorDetail("");
+    setIsScreenSharing(false);
+    setRemoteHasVideo(false);
     stopDurationTimer();
     toast.info("通話を終了しました");
   }, [stopDurationTimer]);
@@ -391,6 +458,13 @@ export default function VoiceCall({
     setIsMuted(newMuted);
     toast.info(newMuted ? "マイクをミュートしました" : "マイクのミュートを解除しました");
   }, [isMuted]);
+
+  // ── リモート映像を再生 ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (remoteHasVideo && remoteVideoTrackRef.current && remoteVideoContainerRef.current) {
+      remoteVideoTrackRef.current.play(remoteVideoContainerRef.current);
+    }
+  }, [remoteHasVideo]);
 
   // ── スタートヒント消去 ────────────────────────────────────────────────────
   useEffect(() => {
@@ -683,6 +757,23 @@ export default function VoiceCall({
                 )}
               </Button>
             )}
+
+            {isConnected && (
+              <Button
+                onClick={toggleScreenShare}
+                variant="outline"
+                size="sm"
+                className="vc-screen-share-btn"
+                style={
+                  isScreenSharing
+                    ? { borderColor: "#9e8480", color: "#9e8480", background: "#f3eeee" }
+                    : { borderColor: "#c9a8a3", color: "#6b5b58" }
+                }
+                title={isScreenSharing ? "画面共有を停止" : "画面共有を開始"}
+              >
+                <Monitor className="w-4 h-4" />
+              </Button>
+            )}
           </>
         )}
       </div>
@@ -819,6 +910,26 @@ export default function VoiceCall({
               ミュート中です。スライダーを右に動かすと聞こえます
             </p>
           )}
+        </div>
+      )}
+
+      {/* ── リモート画面共有映像 ─────────────────────────────────── */}
+      {remoteHasVideo && (
+        <div style={{ marginTop: "12px" }}>
+          <p style={{ fontSize: "11px", color: "#9e8480", marginBottom: "6px" }}>
+            {remoteIsScreenSharing ? "📺 相手が画面共有中" : "📺 相手の映像"}
+          </p>
+          <div
+            ref={remoteVideoContainerRef}
+            style={{
+              width: "100%",
+              maxWidth: "480px",
+              aspectRatio: "16/9",
+              background: "#000",
+              borderRadius: "8px",
+              overflow: "hidden",
+            }}
+          />
         </div>
       )}
 
