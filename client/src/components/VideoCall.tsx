@@ -883,11 +883,11 @@ export default function VideoCall({ sessionId, role, isSessionActive, onScreenSh
             display: none;
           }
         }
-        /* PC: aspect-ratio 維持のまま最大 300px 高に制限し中央寄せ */
+        /* PC: aspect-ratio 維持のまま最大 520px 高に制限し中央寄せ */
         @media (min-width: 768px) {
           .vc-video-area {
-            max-width: calc(300px * 16 / 9);
-            max-height: 300px;
+            max-width: calc(520px * 16 / 9);
+            max-height: 520px;
             margin: 0 auto;
           }
         }

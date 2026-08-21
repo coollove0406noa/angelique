@@ -789,11 +789,11 @@ export default function AdminSession() {
           </div>
         </div>
 
-        <div className="flex gap-4 flex-1" style={{ minHeight: 0 }}>
+        <div className="flex gap-4 flex-1 admin-content-flex" style={{ minHeight: 0 }}>
           {/* Left Main Area: ビデオ通話（上部）+ チャット（下部または全体） */}
-          <div className="flex-1 flex flex-col gap-3" style={{ minHeight: 0, height: "calc(100vh - 320px)" }}>
+          <div className="flex-1 flex flex-col gap-3" style={{ minHeight: 0, overflowY: "auto" }}>
             {session?.sessionType === "video" && (
-              <div className="angelique-card p-3" style={{ flexShrink: 0 }}>
+              <div className="angelique-card p-3" style={{ flexShrink: 0, minHeight: "560px" }}>
                 <VideoCall
                   sessionId={sessionId}
                   role="admin"
@@ -808,7 +808,7 @@ export default function AdminSession() {
                 />
               </div>
             )}
-            <div className="angelique-card flex flex-col" style={{ flex: 1, minHeight: session?.sessionType === "video" ? "400px" : 0, overflow: "hidden" }}>
+            <div className="angelique-card flex flex-col" style={{ flex: 1, minHeight: session?.sessionType === "video" ? "300px" : "calc(100vh - 320px)", overflow: "hidden" }}>
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3" style={{ paddingTop: "80px" }}>
               {messages.length === 0 && (
@@ -1039,7 +1039,7 @@ export default function AdminSession() {
           </div>
 
           {/* Right Panel: Controls */}
-          <div className="flex flex-col gap-4" style={{ width: "260px", minWidth: "260px" }}>
+          <div className="flex flex-col gap-4 admin-right-panel" style={{ width: "280px", minWidth: "280px" }}>
             {/* Voice Call Panel (voice sessions only) */}
             {session?.sessionType === "voice" && (
               <>
@@ -1511,6 +1511,24 @@ function KartePanel({ clientId, colors }: { clientId: number; colors: KarteColor
           )}
         </div>
       )}
+
+      {/* ── レスポンシブレイアウト CSS ── */}
+      <style>{`
+        /* PC: 2カラム（VideoCall+Chat 左 / Controls 右） */
+        .admin-content-flex {
+          flex-direction: row;
+        }
+        /* スマホ: 縦積み */
+        @media (max-width: 767px) {
+          .admin-content-flex {
+            flex-direction: column !important;
+          }
+          .admin-right-panel {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
