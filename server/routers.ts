@@ -57,17 +57,18 @@ function authCookieOptions() {
     sameSite: "lax" as const,
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: "/",
+    domain: undefined,
   };
 }
 
 async function getAdminTokenFromCookie(cookieHeader: string): Promise<string | null> {
   const match = cookieHeader.match(/admin_token=([^;]+)/);
-  return match ? match[1] : null;
+  return match ? decodeURIComponent(match[1]).trim() : null;
 }
 
 async function getSuperAdminTokenFromCookie(cookieHeader: string): Promise<string | null> {
   const match = cookieHeader.match(/super_admin_token=([^;]+)/);
-  return match ? match[1] : null;
+  return match ? decodeURIComponent(match[1]).trim() : null;
 }
 
 // ── Admin Router (per fortune teller) ─────────────────────────────────────
@@ -87,8 +88,9 @@ const adminRouter = router({
       }
 
       const token = nanoid(32);
-      ctx.res.cookie("admin_token", token, authCookieOptions());
+      // DB保存を先に行い、成功後にCookieをセット（逆順だとDB失敗時に不整合が生じる）
       await updateFortuneTeller(ft.id, { sessionToken: token });
+      ctx.res.cookie("admin_token", token, authCookieOptions());
 
       return {
         success: true,
