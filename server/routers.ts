@@ -590,7 +590,17 @@ const sessionsRouter = router({
       const session = await getSessionById(input.id);
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
       const addSeconds = input.addMinutes * 60;
-      const newRemaining = (session.remainingSeconds ?? 0) + addSeconds;
+
+      // DB の remainingSeconds はタイマー開始時点の値。
+      // active 中は経過秒数を差し引いて実際の残り時間を算出する。
+      // paused/ended の場合は DB 値がすでに実残り時間（またはゼロ）。
+      let currentRemaining = session.remainingSeconds ?? 0;
+      if (session.status === "active" && session.timerStartedAt) {
+        const elapsed = Math.floor((Date.now() - session.timerStartedAt) / 1000);
+        currentRemaining = Math.max(0, currentRemaining - elapsed);
+      }
+
+      const newRemaining = currentRemaining + addSeconds;
       const now = Date.now();
       await updateSession(input.id, {
         status: "active",
