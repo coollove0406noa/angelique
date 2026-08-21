@@ -949,6 +949,18 @@ export default function VoiceCall({
           チャットも同時に使えます
         </p>
       )}
+
+      {/* 画面共有ボタンのモバイル非表示CSS */}
+      <style>{`
+        .vc-screen-share-btn {
+          display: inline-flex;
+        }
+        @media (max-width: 767px) {
+          .vc-screen-share-btn {
+            display: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

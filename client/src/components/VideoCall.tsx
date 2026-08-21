@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Mic, MicOff, Video, VideoOff,
-  Phone, PhoneOff, AlertCircle, CheckCircle, Loader2, Monitor,
+  Phone, PhoneOff, AlertCircle, CheckCircle, Loader2, Monitor, Eye, EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ export default function VideoCall({ sessionId, role, isSessionActive, onScreenSh
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isPipHidden, setIsPipHidden] = useState(false);
   const [remoteHasVideo, setRemoteHasVideo] = useState(false);
   const [remoteHasAudio, setRemoteHasAudio] = useState(false);
   const [errorDetail, setErrorDetail] = useState("");
@@ -304,6 +305,7 @@ export default function VideoCall({ sessionId, role, isSessionActive, onScreenSh
     setIsMuted(false);
     setIsCameraOff(false);
     setIsScreenSharing(false);
+    setIsPipHidden(false);
     setRemoteHasVideo(false);
     setRemoteHasAudio(false);
     setPipOffset({ x: 0, y: 0 });
@@ -593,6 +595,7 @@ export default function VideoCall({ sessionId, role, isSessionActive, onScreenSh
               cursor: isDraggingRef.current ? "grabbing" : "grab",
               zIndex: 10,
               boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+              display: isPipHidden ? "none" : undefined,
             }}
             onMouseDown={handlePipMouseDown}
             onTouchStart={handlePipTouchStart}
@@ -836,6 +839,21 @@ export default function VideoCall({ sessionId, role, isSessionActive, onScreenSh
               title={isScreenSharing ? "画面共有を停止" : "画面共有を開始"}
             >
               <Monitor className="w-4 h-4" />
+            </Button>
+
+            {/* 自分を隠すボタン */}
+            <Button
+              onClick={() => setIsPipHidden((v) => !v)}
+              variant="outline"
+              size="sm"
+              style={
+                isPipHidden
+                  ? { borderColor: "#9e8480", color: "#9e8480", background: "#f3eeee" }
+                  : { borderColor: "#c9a8a3", color: "#6b5b58" }
+              }
+              title={isPipHidden ? "自分の映像を表示" : "自分の映像を非表示"}
+            >
+              {isPipHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </Button>
 
           </>
