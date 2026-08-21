@@ -211,6 +211,13 @@ export default function ClientSession() {
       toast.success(`${addMinutes}分延長されました`);
     });
 
+    // 鑑定士が延長承認した時（extension_resume経由）→ 延長確認画面を閉じる
+    socket.on("session_extended", () => {
+      setShowExtensionConfirm(false);
+      setShowExtensionUI(false);
+      setExtensionWaiting(false);
+    });
+
     socket.on("session_ended", () => {
       setTimerStatus("ended");
       setShowWaitingRoom(false);

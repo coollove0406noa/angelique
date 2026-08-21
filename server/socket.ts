@@ -19,6 +19,10 @@ const timerStates = new Map<number, TimerState>();
 // key: sessionId, value: お客様のsocket.id（接続中のみ）
 const clientPresence = new Map<number, string>();
 
+// 一時切断後の「未接続」通知を遅延させるタイムアウト管理
+// key: sessionId, value: setTimeout ID
+const clientDisconnectTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+
 function getOrCreateTimerState(sessionId: number): TimerState {
   if (!timerStates.has(sessionId)) {
     timerStates.set(sessionId, {
@@ -91,6 +95,12 @@ export function initSocketIO(httpServer: HttpServer) {
 
       // お客様が接続したことを記録し、管理者に通知
       if (role === "client") {
+        // 再接続時は切断通知タイムアウトをキャンセル
+        const pendingTimeout = clientDisconnectTimeouts.get(sessionId);
+        if (pendingTimeout) {
+          clearTimeout(pendingTimeout);
+          clientDisconnectTimeouts.delete(sessionId);
+        }
         clientPresence.set(sessionId, socket.id);
         socket.to(room).emit("client_presence", { online: true });
         console.log(`[Socket.io] Client presence: online for session ${sessionId}`);
@@ -160,6 +170,12 @@ export function initSocketIO(httpServer: HttpServer) {
     socket.on("waiting_room_join", ({ sessionId }) => {
       const room = `session_${sessionId}`;
       // ウェイティングルームに入ったお客様のソケットを登録（接続状態をonlineに）
+      // 再接続時は切断通知タイムアウトをキャンセル
+      const pendingWaitTimeout = clientDisconnectTimeouts.get(sessionId);
+      if (pendingWaitTimeout) {
+        clearTimeout(pendingWaitTimeout);
+        clientDisconnectTimeouts.delete(sessionId);
+      }
       clientPresence.set(sessionId, socket.id);
       socket.data.sessionId = sessionId;
       socket.data.role = "client";
@@ -347,6 +363,8 @@ export function initSocketIO(httpServer: HttpServer) {
         remainingSeconds,
         timerStartedAt: startedAt,
       });
+      // お客様側の延長確認ダイアログを閉じるためのイベント
+      io?.to(room).emit("session_extended", { sessionId });
       startServerTimer(sessionId);
     });
 
@@ -407,9 +425,17 @@ export function initSocketIO(httpServer: HttpServer) {
         const storedSocketId = clientPresence.get(sessionId);
         if (storedSocketId === socket.id) {
           clientPresence.delete(sessionId);
-          const room = `session_${sessionId}`;
-          io?.to(room).emit("client_presence", { online: false });
-          console.log(`[Socket.io] Client presence: offline for session ${sessionId}`);
+          // ネットワーク揺れによる誤検知を防ぐため5秒待ってから未接続を通知
+          const timeout = setTimeout(() => {
+            clientDisconnectTimeouts.delete(sessionId);
+            // 5秒以内に再接続していない場合のみ未接続を通知
+            if (!clientPresence.has(sessionId)) {
+              const room = `session_${sessionId}`;
+              io?.to(room).emit("client_presence", { online: false });
+              console.log(`[Socket.io] Client presence: offline for session ${sessionId}`);
+            }
+          }, 5000);
+          clientDisconnectTimeouts.set(sessionId, timeout);
         }
       }
     });
