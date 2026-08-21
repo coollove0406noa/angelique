@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Mic, MicOff, Video, VideoOff,
-  Phone, PhoneOff, AlertCircle, CheckCircle, Loader2,
+  Phone, PhoneOff, AlertCircle, CheckCircle, Loader2, Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -15,6 +15,8 @@ interface VideoCallProps {
   sessionId: number;
   role: "admin" | "client";
   isSessionActive: boolean;
+  onScreenShareChange?: (isSharing: boolean) => void;
+  remoteIsScreenSharing?: boolean;
 }
 
 type CallStatus =
@@ -34,10 +36,11 @@ let AgoraRTC: typeof import("agora-rtc-sdk-ng").default | null = null;
 // コンポーネント
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function VideoCall({ sessionId, role, isSessionActive }: VideoCallProps) {
+export default function VideoCall({ sessionId, role, isSessionActive, onScreenShareChange, remoteIsScreenSharing }: VideoCallProps) {
   const [callStatus, setCallStatus] = useState<CallStatus>("idle");
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [remoteHasVideo, setRemoteHasVideo] = useState(false);
   const [remoteHasAudio, setRemoteHasAudio] = useState(false);
   const [errorDetail, setErrorDetail] = useState("");
@@ -47,6 +50,7 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   const clientRef = useRef<import("agora-rtc-sdk-ng").IAgoraRTCClient | null>(null);
   const localAudioTrackRef = useRef<import("agora-rtc-sdk-ng").IMicrophoneAudioTrack | null>(null);
   const localVideoTrackRef = useRef<import("agora-rtc-sdk-ng").ICameraVideoTrack | null>(null);
+  const screenVideoTrackRef = useRef<import("agora-rtc-sdk-ng").ILocalVideoTrack | null>(null);
   const remoteVideoTrackRef = useRef<import("agora-rtc-sdk-ng").IRemoteVideoTrack | null>(null);
 
   // 各映像の表示先DOM（callback refで確実にAgora.play()を呼ぶ）
@@ -278,6 +282,10 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
 
   // ── 通話終了 ──────────────────────────────────────────────────────────────
   const endCall = useCallback(async () => {
+    screenVideoTrackRef.current?.stop();
+    screenVideoTrackRef.current?.close();
+    screenVideoTrackRef.current = null;
+
     localAudioTrackRef.current?.stop();
     localAudioTrackRef.current?.close();
     localAudioTrackRef.current = null;
@@ -295,11 +303,84 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
     setCallStatus("idle");
     setIsMuted(false);
     setIsCameraOff(false);
+    setIsScreenSharing(false);
     setRemoteHasVideo(false);
     setRemoteHasAudio(false);
     setPipOffset({ x: 0, y: 0 });
+    onScreenShareChange?.(false);
     toast.info("ビデオ通話を終了しました");
-  }, []);
+  }, [onScreenShareChange]);
+
+  // ── 画面共有停止（内部共通処理）────────────────────────────────────────
+  const stopScreenShare = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    const screenTrack = screenVideoTrackRef.current;
+    if (screenTrack) {
+      await client.unpublish(screenTrack).catch(() => {});
+      screenTrack.stop();
+      screenTrack.close();
+      screenVideoTrackRef.current = null;
+    }
+    // カメラトラックを再publish
+    if (localVideoTrackRef.current) {
+      await client.publish(localVideoTrackRef.current).catch(() => {});
+      if (localPipContainerRef.current && !isCameraOff) {
+        localVideoTrackRef.current.play(localPipContainerRef.current);
+      }
+    }
+    setIsScreenSharing(false);
+    onScreenShareChange?.(false);
+  }, [isCameraOff, onScreenShareChange]);
+
+  // ── 画面共有開始・停止トグル ──────────────────────────────────────────
+  const toggleScreenShare = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+
+    if (isScreenSharing) {
+      await stopScreenShare();
+      return;
+    }
+
+    try {
+      const sdk = AgoraRTC;
+      if (!sdk) return;
+
+      const screenTrack = await sdk.createScreenVideoTrack(
+        { encoderConfig: "1080p_1" },
+        "disable"
+      );
+      // createScreenVideoTrack は単体トラックを返すが型が配列になることもある
+      const track = Array.isArray(screenTrack) ? screenTrack[0] : screenTrack;
+      screenVideoTrackRef.current = track;
+
+      // カメラトラックをunpublishして画面共有をpublish
+      if (localVideoTrackRef.current) {
+        await client.unpublish(localVideoTrackRef.current).catch(() => {});
+      }
+      await client.publish(track);
+
+      // ブラウザの「共有を停止」ボタンで停止したときの自動対応
+      track.on("track-ended", () => {
+        stopScreenShare();
+        toast.info("画面共有を停止しました");
+      });
+
+      setIsScreenSharing(true);
+      onScreenShareChange?.(true);
+      toast.success("画面共有を開始しました");
+    } catch (err: unknown) {
+      const error = err as Error;
+      // ユーザーがキャンセルした場合は何もしない
+      if (error.name === "NotAllowedError" || error.message?.includes("cancel")) return;
+      toast.error("画面共有を開始できませんでした");
+      // カメラトラックに戻す
+      if (localVideoTrackRef.current && client) {
+        await client.publish(localVideoTrackRef.current).catch(() => {});
+      }
+    }
+  }, [isScreenSharing, stopScreenShare, onScreenShareChange]);
 
   // ── ミュート切り替え ──────────────────────────────────────────────────────
   const toggleMute = useCallback(async () => {
@@ -386,6 +467,8 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
   // ── アンマウント時クリーンアップ ─────────────────────────────────────────
   useEffect(() => {
     return () => {
+      screenVideoTrackRef.current?.stop();
+      screenVideoTrackRef.current?.close();
       localAudioTrackRef.current?.stop();
       localAudioTrackRef.current?.close();
       localVideoTrackRef.current?.stop();
@@ -425,7 +508,11 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
         />
         <span className="text-sm font-medium" style={{ color: "#6b5b58" }}>
           {isConnected && isSessionActive
-            ? "ビデオ通話中"
+            ? isScreenSharing
+              ? "画面共有中"
+              : remoteIsScreenSharing
+              ? "画面共有中（相手）"
+              : "ビデオ通話中"
             : isConnecting
             ? "接続中..."
             : isCamCheck
@@ -735,6 +822,22 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
               )}
             </Button>
 
+            {/* 画面共有ボタン（PCのみ） */}
+            <Button
+              onClick={toggleScreenShare}
+              variant="outline"
+              size="sm"
+              className="vc-screen-share-btn"
+              style={
+                isScreenSharing
+                  ? { borderColor: "#5c6bc0", color: "#3949ab", background: "#e8eaf6" }
+                  : { borderColor: "#c9a8a3", color: "#6b5b58" }
+              }
+              title={isScreenSharing ? "画面共有を停止" : "画面共有を開始"}
+            >
+              <Monitor className="w-4 h-4" />
+            </Button>
+
           </>
         )}
       </div>
@@ -753,6 +856,15 @@ export default function VideoCall({ sessionId, role, isSessionActive }: VideoCal
 
       {/* Agora が注入する <video> に object-fit: cover + レスポンシブサイズ + PiP サイズ */}
       <style>{`
+        /* 画面共有ボタンはスマホで非表示 */
+        .vc-screen-share-btn {
+          display: inline-flex;
+        }
+        @media (max-width: 767px) {
+          .vc-screen-share-btn {
+            display: none;
+          }
+        }
         /* PC: aspect-ratio 維持のまま最大 300px 高に制限し中央寄せ */
         @media (min-width: 768px) {
           .vc-video-area {

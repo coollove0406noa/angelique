@@ -388,6 +388,16 @@ export function initSocketIO(httpServer: HttpServer) {
       console.log(`[Socket.io] client_end_session for room ${room}`);
     });
 
+    socket.on("screen_share_start", ({ sessionId }) => {
+      const room = `session_${sessionId}`;
+      socket.to(room).emit("remote_screen_share_start", { sessionId });
+    });
+
+    socket.on("screen_share_stop", ({ sessionId }) => {
+      const room = `session_${sessionId}`;
+      socket.to(room).emit("remote_screen_share_stop", { sessionId });
+    });
+
     socket.on("disconnect", () => {
       console.log("[Socket.io] Client disconnected:", socket.id);
       // お客様が切断したとき、管理者に通知

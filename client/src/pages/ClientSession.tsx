@@ -72,6 +72,8 @@ export default function ClientSession() {
   const [showCloseMessage, setShowCloseMessage] = useState(false);
   // 画像アップロード
   const [uploadingImage, setUploadingImage] = useState(false);
+  // 画面共有状態（相手側）
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -226,6 +228,10 @@ export default function ClientSession() {
     socket.on("session_started", () => {
       setShowWaitingRoom(false);
     });
+
+    // 相手の画面共有状態
+    socket.on("remote_screen_share_start", () => setRemoteScreenSharing(true));
+    socket.on("remote_screen_share_stop", () => setRemoteScreenSharing(false));
 
     // サーバーからの毎秒タイマーティックを受信（クライアント側setInterval不要）
     // ※このリスナーは1つのソケットに1つだけ登録される（重複防止済み）
@@ -800,6 +806,13 @@ export default function ClientSession() {
             sessionId={session.id}
             role="client"
             isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+            remoteIsScreenSharing={remoteScreenSharing}
+            onScreenShareChange={(sharing) => {
+              socketRef.current?.emit(
+                sharing ? "screen_share_start" : "screen_share_stop",
+                { sessionId: session.id }
+              );
+            }}
           />
         </div>
       )}

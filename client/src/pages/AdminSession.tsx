@@ -87,6 +87,8 @@ export default function AdminSession() {
   const [clientExtensionChoice, setClientExtensionChoice] = useState<"extend" | "end" | null>(null);
   // お客様の接続状態（Socket.ioでリアルタイム検知）
   const [clientOnline, setClientOnline] = useState(false);
+  // 画面共有状態
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -232,6 +234,9 @@ export default function AdminSession() {
         toast.info("⚪ お客様が離線しました", { duration: 4000 });
       }
     });
+    // 相手の画面共有状態
+    socket.on("remote_screen_share_start", () => setRemoteScreenSharing(true));
+    socket.on("remote_screen_share_stop", () => setRemoteScreenSharing(false));
     // サーバーからの毎秒タイマーティックを受信（クライアント側setInterval不要）
     // timer_tickは必ずoffしてから再登録（重複防止）
     socket.off("timer_tick");
@@ -792,6 +797,13 @@ export default function AdminSession() {
                   sessionId={sessionId}
                   role="admin"
                   isSessionActive={timerStatus === "active" || timerStatus === "paused"}
+                  remoteIsScreenSharing={remoteScreenSharing}
+                  onScreenShareChange={(sharing) => {
+                    socketRef.current?.emit(
+                      sharing ? "screen_share_start" : "screen_share_stop",
+                      { sessionId }
+                    );
+                  }}
                 />
               </div>
             )}
