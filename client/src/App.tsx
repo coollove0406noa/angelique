@@ -77,7 +77,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster richColors position="top-right" />
+          <Toaster richColors position="bottom-right" />
           <FaviconManager />
           <AdminAuthProvider>
             <AdminBrandWrapper>
