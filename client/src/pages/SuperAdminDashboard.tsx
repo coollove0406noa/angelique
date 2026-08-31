@@ -103,7 +103,11 @@ export default function SuperAdminDashboard() {
   const [createForm, setCreateForm] = useState({
     slug: "", brandName: "", password: "",
     themeColor: "#f3e7e5", accentColor: "#c9a8a3",
+    storesUrlChatMin10: "", storesUrlChatMin30: "",
+    storesUrlVoiceMin10: "", storesUrlVoiceMin30: "",
   });
+  const [testEmailTarget, setTestEmailTarget] = useState<{ id: number; brandName: string } | null>(null);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
 
   const [editForm, setEditForm] = useState({
     brandName: "", themeColor: "#f3e7e5", accentColor: "#c9a8a3",
@@ -116,8 +120,17 @@ export default function SuperAdminDashboard() {
     onSuccess: (data) => {
       toast.success(`${createForm.brandName}（/${data.slug}）を作成しました`);
       setShowCreateForm(false);
-      setCreateForm({ slug: "", brandName: "", password: "", themeColor: "#f3e7e5", accentColor: "#c9a8a3" });
+      setCreateForm({ slug: "", brandName: "", password: "", themeColor: "#f3e7e5", accentColor: "#c9a8a3", storesUrlChatMin10: "", storesUrlChatMin30: "", storesUrlVoiceMin10: "", storesUrlVoiceMin30: "" });
       refetchFt();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const testEmailMutation = trpc.superAdmin.sendTestEmail.useMutation({
+    onSuccess: () => {
+      toast.success("テストメールを送信しました");
+      setTestEmailTarget(null);
+      setTestEmailAddress("");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -144,7 +157,17 @@ export default function SuperAdminDashboard() {
     if (!createForm.slug || !createForm.brandName || !createForm.password) {
       toast.error("必須項目を入力してください"); return;
     }
-    createMutation.mutate(createForm);
+    createMutation.mutate({
+      slug: createForm.slug,
+      brandName: createForm.brandName,
+      password: createForm.password,
+      themeColor: createForm.themeColor,
+      accentColor: createForm.accentColor,
+      storesUrlChatMin10: createForm.storesUrlChatMin10 || undefined,
+      storesUrlChatMin30: createForm.storesUrlChatMin30 || undefined,
+      storesUrlVoiceMin10: createForm.storesUrlVoiceMin10 || undefined,
+      storesUrlVoiceMin30: createForm.storesUrlVoiceMin30 || undefined,
+    });
   }
 
   function handleUpdate(e: React.FormEvent) {
@@ -235,12 +258,19 @@ export default function SuperAdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button className="angelique-btn-outline" style={{ padding: "6px 14px", fontSize: "12px" }} onClick={() => navigate(`/admin/${ft.slug}`)}>
                       管理画面へ
                     </button>
                     <button className="angelique-btn-outline" style={{ padding: "6px 14px", fontSize: "12px" }} onClick={() => openEdit(ft as FortuneTeller)}>
                       編集
+                    </button>
+                    <button
+                      className="angelique-btn-outline"
+                      style={{ padding: "6px 14px", fontSize: "12px", color: "#42a5f5", borderColor: "#42a5f5" }}
+                      onClick={() => { setTestEmailTarget({ id: ft.id, brandName: ft.brandName }); setTestEmailAddress(""); }}
+                    >
+                      テストメール
                     </button>
                     <button
                       className="angelique-btn-outline"
@@ -293,11 +323,66 @@ export default function SuperAdminDashboard() {
                   />
                 </div>
               </div>
+              <div className="mb-4">
+                <label className="angelique-label" style={{ fontWeight: 600, color: "#6b5b58" }}>STORES 延長URL（任意）</label>
+                <p style={{ fontSize: "11px", color: "#9e8480", marginBottom: "8px" }}>後から設定画面でも変更できます。</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <div>
+                    <label className="angelique-label">チャット 10分URL</label>
+                    <input type="url" className="angelique-input" value={createForm.storesUrlChatMin10}
+                      onChange={(e) => setCreateForm(f => ({ ...f, storesUrlChatMin10: e.target.value }))} placeholder="https://stores.jp/..." />
+                  </div>
+                  <div>
+                    <label className="angelique-label">チャット 30分URL</label>
+                    <input type="url" className="angelique-input" value={createForm.storesUrlChatMin30}
+                      onChange={(e) => setCreateForm(f => ({ ...f, storesUrlChatMin30: e.target.value }))} placeholder="https://stores.jp/..." />
+                  </div>
+                  <div>
+                    <label className="angelique-label">音声 10分URL</label>
+                    <input type="url" className="angelique-input" value={createForm.storesUrlVoiceMin10}
+                      onChange={(e) => setCreateForm(f => ({ ...f, storesUrlVoiceMin10: e.target.value }))} placeholder="https://stores.jp/..." />
+                  </div>
+                  <div>
+                    <label className="angelique-label">音声 30分URL</label>
+                    <input type="url" className="angelique-input" value={createForm.storesUrlVoiceMin30}
+                      onChange={(e) => setCreateForm(f => ({ ...f, storesUrlVoiceMin30: e.target.value }))} placeholder="https://stores.jp/..." />
+                  </div>
+                </div>
+              </div>
               <div className="flex gap-3">
                 <button type="submit" className="angelique-btn" disabled={createMutation.isPending}>{createMutation.isPending ? "作成中..." : "作成する"}</button>
                 <button type="button" className="angelique-btn-outline" onClick={() => setShowCreateForm(false)}>キャンセル</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Test Email Modal */}
+      {testEmailTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(107,91,88,0.25)" }} onClick={(e) => { if (e.target === e.currentTarget) setTestEmailTarget(null); }}>
+          <div className="angelique-card p-8 w-full max-w-sm mx-4">
+            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "20px", color: "#6b5b58", marginBottom: "8px" }}>
+              テストメール送信
+            </h2>
+            <p style={{ fontSize: "12px", color: "#9e8480", marginBottom: "20px" }}>
+              {testEmailTarget.brandName} からテストメールを送信します。
+            </p>
+            <div className="mb-6">
+              <label className="angelique-label">送信先メールアドレス *</label>
+              <input type="email" className="angelique-input" value={testEmailAddress}
+                onChange={(e) => setTestEmailAddress(e.target.value)} placeholder="test@example.com" required />
+            </div>
+            <div className="flex gap-3">
+              <button
+                className="angelique-btn"
+                disabled={testEmailMutation.isPending || !testEmailAddress}
+                onClick={() => testEmailMutation.mutate({ fortuneTellerId: testEmailTarget.id, toEmail: testEmailAddress })}
+              >
+                {testEmailMutation.isPending ? "送信中..." : "送信する"}
+              </button>
+              <button className="angelique-btn-outline" onClick={() => setTestEmailTarget(null)}>キャンセル</button>
+            </div>
           </div>
         </div>
       )}

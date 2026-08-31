@@ -71,6 +71,22 @@ async function getSuperAdminTokenFromCookie(cookieHeader: string): Promise<strin
   return match ? decodeURIComponent(match[1]).trim() : null;
 }
 
+async function isSuperAdminAuthenticated(cookieHeader: string): Promise<boolean> {
+  const token = await getSuperAdminTokenFromCookie(cookieHeader);
+  if (!token) return false;
+  const stored = await getSuperAdminSessionToken();
+  return stored === token;
+}
+
+async function assertFortuneTellerAccess(cookieHeader: string, fortuneTellerId: number): Promise<void> {
+  if (await isSuperAdminAuthenticated(cookieHeader)) return;
+  const adminToken = await getAdminTokenFromCookie(cookieHeader);
+  if (!adminToken) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const ft = await getFortuneTellerByToken(adminToken);
+  if (!ft || !ft.isActive) throw new TRPCError({ code: "UNAUTHORIZED" });
+  if (ft.id !== fortuneTellerId) throw new TRPCError({ code: "FORBIDDEN", message: "アクセス権限がありません" });
+}
+
 // ── Admin Router (per fortune teller) ─────────────────────────────────────
 
 const adminRouter = router({
@@ -251,6 +267,10 @@ const superAdminRouter = router({
         password: z.string().min(6),
         themeColor: z.string().default("#f3e7e5"),
         accentColor: z.string().default("#c9a8a3"),
+        storesUrlChatMin10: z.string().optional(),
+        storesUrlChatMin30: z.string().optional(),
+        storesUrlVoiceMin10: z.string().optional(),
+        storesUrlVoiceMin30: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -275,7 +295,52 @@ const superAdminRouter = router({
         themeColor: input.themeColor,
         accentColor: input.accentColor,
       });
+
+      // Save initial STORES URLs if provided
+      const urlSettings = [
+        { key: "stores_url_chat_10min", value: input.storesUrlChatMin10, label: "STORES延長URL（チャット10分）" },
+        { key: "stores_url_chat_30min", value: input.storesUrlChatMin30, label: "STORES延長URL（チャット30分）" },
+        { key: "stores_url_voice_10min", value: input.storesUrlVoiceMin10, label: "STORES延長URL（音声10分）" },
+        { key: "stores_url_voice_30min", value: input.storesUrlVoiceMin30, label: "STORES延長URL（音声30分）" },
+      ];
+      for (const { key, value, label } of urlSettings) {
+        if (value) await setSettingForFortuneTeller(id, key, value, label);
+      }
+
       return { id, slug: input.slug };
+    }),
+
+  sendTestEmail: publicProcedure
+    .input(z.object({ fortuneTellerId: z.number(), toEmail: z.string().email() }))
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getSuperAdminTokenFromCookie(cookieHeader);
+      const stored = await getSuperAdminSessionToken();
+      if (!token || stored !== token) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      const ft = await getFortuneTellerById(input.fortuneTellerId);
+      if (!ft) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "RESEND_API_KEY が設定されていません" });
+
+      const { Resend } = await import("resend");
+      const resend = new Resend(apiKey);
+      const { error } = await resend.emails.send({
+        from: `${ft.brandName} <info@noakayou.com>`,
+        to: [input.toEmail],
+        subject: `【${ft.brandName}】メール送信テスト`,
+        html: `<div style="font-family:sans-serif;padding:24px;max-width:480px">
+          <h2 style="color:#c9a8a3">✦ ${ft.brandName}</h2>
+          <p>これはメール送信のテストです。</p>
+          <p>このメールが届いていれば、メール送信設定は正常に機能しています。</p>
+          <hr style="border:none;border-top:1px solid #f0e0dc;margin:16px 0">
+          <p style="font-size:12px;color:#9e8480">angelique スーパー管理者からのテストメール</p>
+        </div>`,
+      });
+
+      if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `送信エラー: ${error.message}` });
+      return { success: true };
     }),
 
   updateFortuneTeller: publicProcedure
@@ -353,15 +418,17 @@ const fortuneTellerRouter = router({
 const clientsRouter = router({
   list: publicProcedure
     .input(z.object({ fortuneTellerId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertFortuneTellerAccess(ctx.req.headers.cookie || "", input.fortuneTellerId);
       return getAllClients(input.fortuneTellerId);
     }),
 
   get: publicProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const client = await getClientById(input.id);
       if (!client) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertFortuneTellerAccess(ctx.req.headers.cookie || "", client.fortuneTellerId);
       return client;
     }),
 
@@ -411,7 +478,8 @@ const clientsRouter = router({
 const sessionsRouter = router({
   list: publicProcedure
     .input(z.object({ fortuneTellerId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertFortuneTellerAccess(ctx.req.headers.cookie || "", input.fortuneTellerId);
       return getAllSessions(input.fortuneTellerId);
     }),
 
@@ -423,9 +491,10 @@ const sessionsRouter = router({
 
   get: publicProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const session = await getSessionById(input.id);
       if (!session) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertFortuneTellerAccess(ctx.req.headers.cookie || "", session.fortuneTellerId);
       const client = await getClientById(session.clientId);
       return { ...session, clientName: client?.name ?? null, clientEmail: client?.email ?? null };
     }),
@@ -621,7 +690,10 @@ const sessionsRouter = router({
 const messagesRouter = router({
   list: publicProcedure
     .input(z.object({ sessionId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const session = await getSessionById(input.sessionId);
+      if (!session) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertFortuneTellerAccess(ctx.req.headers.cookie || "", session.fortuneTellerId);
       return getMessagesBySession(input.sessionId);
     }),
 
@@ -800,7 +872,8 @@ const emailRouter = router({
 const stampsRouter = router({
   list: publicProcedure
     .input(z.object({ fortuneTellerId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertFortuneTellerAccess(ctx.req.headers.cookie || "", input.fortuneTellerId);
       return getStampsByFortuneTeller(input.fortuneTellerId);
     }),
 
