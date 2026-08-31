@@ -1,4 +1,4 @@
-import { Component, ReactNode } from "react";
+import { Component, ReactNode, ErrorInfo } from "react";
 
 interface Props {
   children: ReactNode;
@@ -17,6 +17,10 @@ class ErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("[ErrorBoundary] caught:", error, errorInfo);
   }
 
   render() {
@@ -110,7 +114,17 @@ class ErrorBoundary extends Component<Props, State> {
             >
               {/* Reload button */}
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  if (!sessionStorage.getItem("session_retried")) {
+                    sessionStorage.setItem("session_retried", "1");
+                    window.location.reload();
+                  } else {
+                    sessionStorage.removeItem("session_retried");
+                    // 管理者セッションページなら管理画面トップへ
+                    const match = window.location.pathname.match(/^\/admin\/([^/]+)\//);
+                    window.location.href = match ? `/admin/${match[1]}` : "/";
+                  }
+                }}
                 style={{
                   background: "#c9a8a3",
                   color: "#ffffff",

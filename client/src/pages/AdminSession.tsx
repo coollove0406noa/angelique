@@ -99,16 +99,14 @@ export default function AdminSession() {
     { id: sessionId },
     {
       enabled: !!sessionId && isAuthenticated,
-      onError: (e: { data?: { httpStatus?: number } }) => {
-        if (e.data?.httpStatus === 401) {
-          const retryKey = `auth_401_retry_${sessionId}`;
-          if (!sessionStorage.getItem(retryKey)) {
-            sessionStorage.setItem(retryKey, "1");
-            window.location.reload();
-          } else {
-            sessionStorage.removeItem(retryKey);
-            window.location.href = `/admin/${slug}`;
-          }
+      onError: (e: unknown) => {
+        console.error("[AdminSession] sessions.get error:", e);
+        if (!sessionStorage.getItem("session_retried")) {
+          sessionStorage.setItem("session_retried", "1");
+          window.location.reload();
+        } else {
+          sessionStorage.removeItem("session_retried");
+          window.location.href = `/admin/${slug}`;
         }
       },
     }
@@ -159,6 +157,7 @@ export default function AdminSession() {
 
   // Initialize session state
   useEffect(() => {
+    console.log("[AdminSession] sessionData:", sessionData, "isLoading:", isLoading, "isAuthenticated:", isAuthenticated);
     if (sessionData) {
       setSession(sessionData as unknown as Session);
       const secs = sessionData.remainingSeconds ?? 0;
