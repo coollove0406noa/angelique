@@ -97,7 +97,14 @@ export default function AdminSession() {
   // tRPC
   const { data: sessionData, refetch: refetchSession } = trpc.sessions.get.useQuery(
     { id: sessionId },
-    { enabled: !!sessionId && isAuthenticated }
+    {
+      enabled: !!sessionId && isAuthenticated,
+      onError: (e: { data?: { httpStatus?: number } }) => {
+        if (e.data?.httpStatus === 401) {
+          window.location.href = `/admin/${slug}`;
+        }
+      },
+    }
   );
   const { data: initialMessages } = trpc.messages.list.useQuery(
     { sessionId },
