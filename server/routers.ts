@@ -111,7 +111,12 @@ const adminRouter = router({
         await updateFortuneTeller(ft.id, { sessionToken: null });
       }
     }
-    ctx.res.clearCookie("admin_token", { path: "/" });
+    ctx.res.clearCookie("admin_token", {
+      path: "/",
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    });
     return { success: true };
   }),
 

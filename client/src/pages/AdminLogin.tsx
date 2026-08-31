@@ -11,9 +11,16 @@ interface AdminLoginProps {
 export default function AdminLogin({ slug }: AdminLoginProps) {
   const [password, setPassword] = useState("");
   const { brandName, colors } = useBrand();
+  const utils = trpc.useUtils();
 
   const loginMutation = trpc.admin.login.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Cookieがブラウザにセットされたことをサーバーへ確認してからリダイレクト
+      try {
+        await utils.admin.check.fetch();
+      } catch {
+        // checkが失敗しても続行（ページ遷移後に再判定される）
+      }
       window.location.replace(`/admin/${slug}`);
     },
     onError: () => {

@@ -101,7 +101,14 @@ export default function AdminSession() {
       enabled: !!sessionId && isAuthenticated,
       onError: (e: { data?: { httpStatus?: number } }) => {
         if (e.data?.httpStatus === 401) {
-          window.location.href = `/admin/${slug}`;
+          const retryKey = `auth_401_retry_${sessionId}`;
+          if (!sessionStorage.getItem(retryKey)) {
+            sessionStorage.setItem(retryKey, "1");
+            window.location.reload();
+          } else {
+            sessionStorage.removeItem(retryKey);
+            window.location.href = `/admin/${slug}`;
+          }
         }
       },
     }
