@@ -353,28 +353,30 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           <span className="wr-logo-text">angelique</span>
         </div>
 
-        {/* タロットカード */}
-        <div
-          className="wr-card"
-          style={{ opacity: cardVisible ? 1 : 0, transition: "opacity 1.5s ease-in-out" }}
-        >
-          {!imgError ? (
-            <img
-              key={displayCard.name}
-              src={displayCard.img}
-              alt={displayCard.name}
-              className="wr-card-img"
-              draggable={false}
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="wr-card-fallback">
-              <div className="wr-card-roman">{displayCard.roman}</div>
-              <div className="wr-card-symbol-big">{displayCard.symbol}</div>
-            </div>
-          )}
-          <div className="wr-card-name">{displayCard.name}</div>
-          <div className="wr-card-meaning">{displayCard.meaning}</div>
+        {/* タロットカード：外枠は常に固定表示、内側コンテンツのみフェード */}
+        <div className="wr-card">
+          <div
+            className="wr-card-inner"
+            style={{ opacity: cardVisible ? 1 : 0, transition: "opacity 1.5s ease-in-out" }}
+          >
+            {!imgError ? (
+              <img
+                key={displayCard.name}
+                src={displayCard.img}
+                alt={displayCard.name}
+                className="wr-card-img"
+                draggable={false}
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div className="wr-card-fallback">
+                <div className="wr-card-roman">{displayCard.roman}</div>
+                <div className="wr-card-symbol-big">{displayCard.symbol}</div>
+              </div>
+            )}
+            <div className="wr-card-name">{displayCard.name}</div>
+            <div className="wr-card-meaning">{displayCard.meaning}</div>
+          </div>
         </div>
 
         {/* 待機メッセージ */}
@@ -507,12 +509,11 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           color: #e8d5d0;
           letter-spacing: 0.18em;
         }
-        /* カード */
+        /* カード：外枠は常に固定・フェードしない */
         .wr-card {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 0.6rem;
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(201,168,163,0.25);
           border-radius: 1.25rem;
@@ -520,6 +521,14 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           width: 100%;
           backdrop-filter: blur(12px);
           box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+        }
+        /* カード内側：フェード対象のコンテンツラッパー */
+        .wr-card-inner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.6rem;
+          width: 100%;
         }
         .wr-card-img {
           width: 140px;
