@@ -1,21 +1,21 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { useLocation } from "wouter";
 
 export default function SuperAdminLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
 
   const loginMutation = trpc.superAdmin.login.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.firstSetup) {
         toast.success("初回セットアップ完了。このパスワードでスーパー管理者ログインできます。");
       } else {
         toast.success("ログインしました");
       }
-      navigate("/super-admin");
+      try { await utils.superAdmin.check.fetch(); } catch {}
+      window.location.href = "/super-admin";
     },
     onError: (err) => {
       toast.error(err.message || "ログインに失敗しました");

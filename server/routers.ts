@@ -292,6 +292,7 @@ const superAdminRouter = router({
       }
 
       const passwordHash = await bcrypt.hash(input.password, 12);
+      console.log("[createFortuneTeller] slug:", input.slug, "passwordHash length:", passwordHash.length);
       const id = await createFortuneTeller({
         slug: input.slug,
         brandName: input.brandName,
@@ -299,6 +300,7 @@ const superAdminRouter = router({
         themeColor: input.themeColor,
         accentColor: input.accentColor,
       });
+      console.log("[createFortuneTeller] created id:", id, "type:", typeof id);
 
       // Save initial STORES URLs if provided
       const urlSettings = [
@@ -308,8 +310,15 @@ const superAdminRouter = router({
         { key: "stores_url_voice_30min", value: input.storesUrlVoiceMin30, label: "STORES延長URL（音声30分）" },
       ];
       for (const { key, value, label } of urlSettings) {
-        if (value) await setSettingForFortuneTeller(id, key, value, label);
+        if (value) {
+          console.log("[createFortuneTeller] saving setting:", key, "for ft id:", id);
+          await setSettingForFortuneTeller(id, key, value, label);
+        }
       }
+
+      // Verify created fortune teller is retrievable
+      const created = await getFortuneTellerBySlug(input.slug);
+      console.log("[createFortuneTeller] verify:", !!created, "isActive:", created?.isActive, "passwordHash length:", created?.passwordHash?.length ?? 0);
 
       return { id, slug: input.slug };
     }),

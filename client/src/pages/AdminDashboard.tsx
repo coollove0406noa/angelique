@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   );
 
   const logoutMutation = trpc.admin.logout.useMutation({
-    onSuccess: () => refetchAuth(),
+    onSuccess: () => { window.location.href = `/admin/${slug}`; },
   });
 
   if (isLoading) {

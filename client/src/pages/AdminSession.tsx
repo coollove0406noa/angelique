@@ -153,7 +153,7 @@ export default function AdminSession() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
+  const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => { window.location.href = `/admin/${slug}`; } });
   const { data: customStamps } = trpc.stamps.list.useQuery(
     { fortuneTellerId: fortuneTeller?.fortuneTellerId ?? 0 },
     { enabled: isAuthenticated && !!fortuneTeller }
