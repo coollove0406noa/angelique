@@ -518,16 +518,16 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(201,168,163,0.25);
           border-radius: 1.25rem;
-          padding: 1.25rem 1.5rem 1.5rem;
+          padding: 1rem 1.5rem 1.2rem;
           width: 100%;
-          min-height: 360px;
+          min-height: 440px;
           backdrop-filter: blur(12px);
           box-shadow: 0 8px 40px rgba(0,0,0,0.4);
         }
         /* 画像：固定サイズ（高さautoを廃止して枠の収縮を防ぐ） */
         .wr-card-img {
-          width: 140px;
-          height: 200px;
+          width: 185px;
+          height: 300px;
           border-radius: 0.75rem;
           box-shadow: 0 4px 20px rgba(0,0,0,0.5);
           object-fit: contain;
@@ -535,8 +535,8 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           flex-shrink: 0;
         }
         .wr-card-fallback {
-          width: 140px;
-          height: 200px;
+          width: 185px;
+          height: 300px;
           border-radius: 0.75rem;
           border: 1.5px solid rgba(201,168,163,0.5);
           background: linear-gradient(160deg, rgba(40,20,60,0.9) 0%, rgba(25,12,45,0.95) 100%);
@@ -752,9 +752,9 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         /* スマホ対応 */
         @media (max-width: 420px) {
           .wr-content { padding: 1.5rem 1rem; gap: 1rem; }
-          .wr-card { min-height: 320px; }
-          .wr-card-img { width: 110px; height: 160px; }
-          .wr-card-fallback { width: 110px; height: 160px; }
+          .wr-card { min-height: 370px; }
+          .wr-card-img { width: 145px; height: 220px; }
+          .wr-card-fallback { width: 145px; height: 220px; }
           .wr-card-name { font-size: 1.2rem; }
         }
       `}</style>
