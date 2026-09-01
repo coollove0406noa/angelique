@@ -93,12 +93,16 @@ const adminRouter = router({
   login: publicProcedure
     .input(z.object({ slug: z.string(), password: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      console.log("[login] slug:", input.slug);
       const ft = await getFortuneTellerBySlug(input.slug);
+      console.log("[login] ft found:", !!ft, "isActive:", ft?.isActive);
+      console.log("[login] passwordHash exists:", !!ft?.passwordHash, "length:", ft?.passwordHash?.length ?? 0);
       if (!ft || !ft.isActive) {
         throw new TRPCError({ code: "NOT_FOUND", message: "アカウントが見つかりません" });
       }
 
       const valid = await bcrypt.compare(input.password, ft.passwordHash);
+      console.log("[login] bcrypt result:", valid);
       if (!valid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "パスワードが違います" });
       }
