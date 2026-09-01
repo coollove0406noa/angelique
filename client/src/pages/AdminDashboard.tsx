@@ -100,7 +100,7 @@ export default function AdminDashboard() {
           </p>
           <button
             className="angelique-btn"
-            onClick={() => logoutMutation.mutate()}
+            onClick={() => logoutMutation.mutate({ slug })}
           >
             ログアウトして切り替え
           </button>
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen" style={{ background: colors.main }}>
-      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate({ slug })} />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8">

@@ -54,7 +54,9 @@ export default function AdminSettings() {
     },
     onError: (e) => { toast.error(e.message); setSavingBrand(false); },
   });
-  const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
+  const logoutMutation = trpc.admin.logout.useMutation({
+    onSuccess: () => { window.location.href = `/admin/${slug}`; },
+  });
 
   const { data: stampsList, refetch: refetchStamps } = trpc.stamps.list.useQuery(
     { fortuneTellerId: ftId },
@@ -154,7 +156,7 @@ export default function AdminSettings() {
 
   return (
     <div className="min-h-screen" style={{ background: colors.main }}>
-      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate({ slug })} />
 
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="mb-8">

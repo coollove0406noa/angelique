@@ -17,7 +17,7 @@ export default function AdminLogin({ slug }: AdminLoginProps) {
     onSuccess: async () => {
       // Cookieがブラウザにセットされたことをサーバーへ確認してからリダイレクト
       try {
-        await utils.admin.check.fetch();
+        await utils.admin.check.fetch({ slug });
       } catch {
         // checkが失敗しても続行（ページ遷移後に再判定される）
       }

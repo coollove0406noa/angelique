@@ -70,7 +70,9 @@ export default function AdminClients() {
     onError: (e) => toast.error(e.message),
   });
 
-  const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
+  const logoutMutation = trpc.admin.logout.useMutation({
+    onSuccess: () => { window.location.href = `/admin/${slug}`; },
+  });
 
   function resetForm() {
     setClientForm({ name: "", email: "", sessionMinutes: "60", carryoverMinutes: "0", notes: "" });
@@ -113,7 +115,7 @@ export default function AdminClients() {
 
   return (
     <div className="min-h-screen" style={{ background: colors.main }}>
-      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate({ slug })} />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex justify-between items-start mb-8">

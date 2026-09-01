@@ -62,8 +62,10 @@ function authCookieOptions() {
   };
 }
 
-async function getAdminTokenFromCookie(cookieHeader: string): Promise<string | null> {
-  const match = cookieHeader.match(/admin_token=([^;]+)/);
+// Cookie name: admin_token_{slug} — one per fortune teller account
+function getSlugTokenFromCookie(cookieHeader: string, slug: string): string | null {
+  const escaped = slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = cookieHeader.match(new RegExp(`admin_token_${escaped}=([^;]+)`));
   return match ? decodeURIComponent(match[1]).trim() : null;
 }
 
@@ -81,11 +83,13 @@ async function isSuperAdminAuthenticated(cookieHeader: string): Promise<boolean>
 
 async function assertFortuneTellerAccess(cookieHeader: string, fortuneTellerId: number): Promise<void> {
   if (await isSuperAdminAuthenticated(cookieHeader)) return;
-  const adminToken = await getAdminTokenFromCookie(cookieHeader);
+  // Get the target ft to know their slug (needed for slug-specific cookie)
+  const targetFt = await getFortuneTellerById(fortuneTellerId);
+  if (!targetFt) throw new TRPCError({ code: "NOT_FOUND" });
+  const adminToken = getSlugTokenFromCookie(cookieHeader, targetFt.slug);
   if (!adminToken) throw new TRPCError({ code: "UNAUTHORIZED" });
   const ft = await getFortuneTellerByToken(adminToken);
-  if (!ft || !ft.isActive) throw new TRPCError({ code: "UNAUTHORIZED" });
-  if (ft.id !== fortuneTellerId) throw new TRPCError({ code: "FORBIDDEN", message: "アクセス権限がありません" });
+  if (!ft || !ft.isActive || ft.id !== fortuneTellerId) throw new TRPCError({ code: "UNAUTHORIZED" });
 }
 
 // ── Admin Router (per fortune teller) ─────────────────────────────────────
@@ -111,7 +115,7 @@ const adminRouter = router({
       const token = nanoid(32);
       // DB保存を先に行い、成功後にCookieをセット（逆順だとDB失敗時に不整合が生じる）
       await updateFortuneTeller(ft.id, { sessionToken: token });
-      ctx.res.cookie("admin_token", token, authCookieOptions());
+      ctx.res.cookie(`admin_token_${ft.slug}`, token, authCookieOptions());
 
       return {
         success: true,
@@ -123,41 +127,43 @@ const adminRouter = router({
       };
     }),
 
-  logout: publicProcedure.mutation(async ({ ctx }) => {
-    const cookieHeader = ctx.req.headers.cookie || "";
-    const token = await getAdminTokenFromCookie(cookieHeader);
-    if (token) {
-      const ft = await getFortuneTellerByToken(token);
-      if (ft) {
-        await updateFortuneTeller(ft.id, { sessionToken: null });
+  logout: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = getSlugTokenFromCookie(cookieHeader, input.slug);
+      if (token) {
+        const ft = await getFortuneTellerByToken(token);
+        if (ft) await updateFortuneTeller(ft.id, { sessionToken: null });
       }
-    }
-    ctx.res.clearCookie("admin_token", {
-      path: "/",
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-    });
-    return { success: true };
-  }),
+      ctx.res.clearCookie(`admin_token_${input.slug}`, {
+        path: "/",
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      });
+      return { success: true };
+    }),
 
-  check: publicProcedure.query(async ({ ctx }) => {
-    const cookieHeader = ctx.req.headers.cookie || "";
-    const token = await getAdminTokenFromCookie(cookieHeader);
-    if (!token) return { authenticated: false };
+  check: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = getSlugTokenFromCookie(cookieHeader, input.slug);
+      if (!token) return { authenticated: false };
 
-    const ft = await getFortuneTellerByToken(token);
-    if (!ft || !ft.isActive) return { authenticated: false };
+      const ft = await getFortuneTellerByToken(token);
+      if (!ft || !ft.isActive || ft.slug !== input.slug) return { authenticated: false };
 
-    return {
-      authenticated: true,
-      fortuneTellerId: ft.id,
-      slug: ft.slug,
-      brandName: ft.brandName,
-      themeColor: ft.themeColor,
-      accentColor: ft.accentColor,
-    };
-  }),
+      return {
+        authenticated: true,
+        fortuneTellerId: ft.id,
+        slug: ft.slug,
+        brandName: ft.brandName,
+        themeColor: ft.themeColor,
+        accentColor: ft.accentColor,
+      };
+    }),
 
   changePassword: publicProcedure
     .input(z.object({
@@ -168,7 +174,7 @@ const adminRouter = router({
     .mutation(async ({ input, ctx }) => {
       // Verify currently logged in as this fortune teller
       const cookieHeader = ctx.req.headers.cookie || "";
-      const token = await getAdminTokenFromCookie(cookieHeader);
+      const token = getSlugTokenFromCookie(cookieHeader, input.slug);
       const ft = token ? await getFortuneTellerByToken(token) : null;
       if (!ft || ft.slug !== input.slug) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
@@ -191,7 +197,7 @@ const adminRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const cookieHeader = ctx.req.headers.cookie || "";
-      const token = await getAdminTokenFromCookie(cookieHeader);
+      const token = getSlugTokenFromCookie(cookieHeader, input.slug);
       const ft = token ? await getFortuneTellerByToken(token) : null;
       if (!ft || ft.slug !== input.slug) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
@@ -719,9 +725,9 @@ const messagesRouter = router({
     .input(z.object({ sessionId: z.number() }))
     .query(async ({ input, ctx }) => {
       const cookieHeader = ctx.req.headers.cookie || "";
-      const adminToken = await getAdminTokenFromCookie(cookieHeader);
-      if (adminToken) {
-        // 管理者アクセス: fortuneTellerIdが一致するか確認
+      // admin_token_{slug} 形式のCookieがあれば管理者アクセスとして認可チェック
+      const hasAdminCookie = /admin_token_[a-z0-9-]+=/.test(cookieHeader);
+      if (hasAdminCookie) {
         const session = await getSessionById(input.sessionId);
         if (!session) throw new TRPCError({ code: "NOT_FOUND" });
         await assertFortuneTellerAccess(cookieHeader, session.fortuneTellerId);
@@ -921,11 +927,7 @@ const stampsRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const cookieHeader = ctx.req.headers.cookie || "";
-      const token = await getAdminTokenFromCookie(cookieHeader);
-      const ft = token ? await getFortuneTellerByToken(token) : null;
-      if (!ft || ft.id !== input.fortuneTellerId) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+      await assertFortuneTellerAccess(cookieHeader, input.fortuneTellerId);
       const existing = await getStampsByFortuneTeller(input.fortuneTellerId);
       if (existing.length >= 30) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "スタンプは最大30枚です" });
@@ -951,11 +953,7 @@ const stampsRouter = router({
     .input(z.object({ id: z.number(), fortuneTellerId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const cookieHeader = ctx.req.headers.cookie || "";
-      const token = await getAdminTokenFromCookie(cookieHeader);
-      const ft = token ? await getFortuneTellerByToken(token) : null;
-      if (!ft || ft.id !== input.fortuneTellerId) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+      await assertFortuneTellerAccess(cookieHeader, input.fortuneTellerId);
       await deleteStamp(input.id, input.fortuneTellerId);
       return { success: true };
     }),

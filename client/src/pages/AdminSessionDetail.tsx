@@ -78,7 +78,9 @@ export default function AdminSessionDetail() {
     onError: (e) => { toast.error(e.message); setSavingNotes(false); },
   });
 
-  const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
+  const logoutMutation = trpc.admin.logout.useMutation({
+    onSuccess: () => { window.location.href = `/admin/${slug}`; },
+  });
 
   function handleSelectSession(sessionId: number) {
     setSelectedSessionId(sessionId);
@@ -112,7 +114,7 @@ export default function AdminSessionDetail() {
 
   return (
     <div className="min-h-screen" style={{ background: colors.main }}>
-      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate({ slug })} />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Breadcrumb */}

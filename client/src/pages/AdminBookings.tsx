@@ -169,7 +169,9 @@ export default function AdminBookings() {
     onError: (e) => toast.error(e.message),
   });
 
-  const logoutMutation = trpc.admin.logout.useMutation({ onSuccess: () => refetchAuth() });
+  const logoutMutation = trpc.admin.logout.useMutation({
+    onSuccess: () => { window.location.href = `/admin/${slug}`; },
+  });
 
   function resetSessionForm() {
     setSessionForm({ clientId: "", scheduledAt: "", durationMinutes: "60", carryoverMinutes: "0", sessionType: "chat", sendEmail: true });
@@ -219,7 +221,7 @@ export default function AdminBookings() {
 
   return (
     <div className="min-h-screen" style={{ background: colors.main }}>
-      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate({ slug })} />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-6">

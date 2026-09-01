@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 
 export interface FortuneTellerInfo {
@@ -24,10 +25,19 @@ const AdminAuthContext = createContext<AdminAuthContextType>({
 });
 
 export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
-  const { data, isLoading, refetch } = trpc.admin.check.useQuery(undefined, {
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
+  const [location] = useLocation();
+  // スラッグを URL から抽出（/admin/{slug}/...）
+  const slugMatch = location.match(/^\/admin\/([a-z0-9-]+)/);
+  const slug = slugMatch ? slugMatch[1] : null;
+
+  const { data, isLoading, refetch } = trpc.admin.check.useQuery(
+    { slug: slug ?? "" },
+    {
+      enabled: !!slug,
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
 
   const fortuneTeller: FortuneTellerInfo | null =
     data?.authenticated && data.fortuneTellerId
@@ -44,7 +54,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     <AdminAuthContext.Provider
       value={{
         isAuthenticated: data?.authenticated ?? false,
-        isLoading,
+        isLoading: !!slug && isLoading,
         fortuneTeller,
         refetch,
       }}

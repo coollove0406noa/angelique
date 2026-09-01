@@ -583,7 +583,7 @@ export default function AdminSession() {
       className={`min-h-screen flex flex-col ${screenFlash ? "screen-flash-anim" : ""}`}
       style={{ background: colors.main }}
     >
-      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate()} />
+      <AngeliqueHeader isAdmin slug={slug} onLogout={() => logoutMutation.mutate({ slug })} />
 
       {/* ── 上部固定バー：タイマー + 終了ボタン ─────────────────────────────────── */}
       <div
