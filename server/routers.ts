@@ -691,9 +691,15 @@ const messagesRouter = router({
   list: publicProcedure
     .input(z.object({ sessionId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const session = await getSessionById(input.sessionId);
-      if (!session) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertFortuneTellerAccess(ctx.req.headers.cookie || "", session.fortuneTellerId);
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const adminToken = await getAdminTokenFromCookie(cookieHeader);
+      if (adminToken) {
+        // 管理者アクセス: fortuneTellerIdが一致するか確認
+        const session = await getSessionById(input.sessionId);
+        if (!session) throw new TRPCError({ code: "NOT_FOUND" });
+        await assertFortuneTellerAccess(cookieHeader, session.fortuneTellerId);
+      }
+      // クライアント（お客様）アクセス: Cookie不要（sessionIdはセッションURLからのみ取得可能）
       return getMessagesBySession(input.sessionId);
     }),
 

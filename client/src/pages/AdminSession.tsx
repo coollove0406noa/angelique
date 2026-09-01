@@ -101,12 +101,16 @@ export default function AdminSession() {
       enabled: !!sessionId && isAuthenticated,
       onError: (e: unknown) => {
         console.error("[AdminSession] sessions.get error:", e);
-        if (!sessionStorage.getItem("session_retried")) {
-          sessionStorage.setItem("session_retried", "1");
-          window.location.reload();
-        } else {
-          sessionStorage.removeItem("session_retried");
-          window.location.href = `/admin/${slug}`;
+        const httpStatus = (e as { data?: { httpStatus?: number } })?.data?.httpStatus;
+        // 401/403のみリトライ（404・その他のエラーはリトライしない）
+        if (httpStatus === 401 || httpStatus === 403) {
+          if (!sessionStorage.getItem("session_retried")) {
+            sessionStorage.setItem("session_retried", "1");
+            window.location.reload();
+          } else {
+            sessionStorage.removeItem("session_retried");
+            window.location.href = `/admin/${slug}`;
+          }
         }
       },
     }
