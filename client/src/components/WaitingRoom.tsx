@@ -49,29 +49,54 @@ interface WaitingRoomProps {
 export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps) {
   // ── カード表示 ──────────────────────────────────────────────────────────
   const [shuffled] = useState(() => shuffleIndices(TAROT_CARDS.length));
-  const [shufflePos, setShufflePos] = useState(0);
-  const [cardOpacity, setCardOpacity] = useState(1);
+  // shuffleの位置はrefで管理（state変更によるeffect再実行を防ぐ）
+  const nextPosRef = useRef(0);
+  // 表示するカードデータを独立したstateで管理
+  const [displayCard, setDisplayCard] = useState(() => TAROT_CARDS[shuffled[0]]);
+  // opacity=0/1をbooleanで管理（falseでフェードアウト）
+  const [cardVisible, setCardVisible] = useState(true);
   const [imgError, setImgError] = useState(false);
-  const currentCard = TAROT_CARDS[shuffled[shufflePos]];
-
-  // カードが切り替わったら画像エラーをリセット
-  useEffect(() => { setImgError(false); }, [shufflePos]);
 
   useEffect(() => {
     const DISPLAY = 15000; // 15秒表示
-    const FADE   = 2000;   // 2秒フェード
+    const FADE    = 1500;  // 1.5秒フェード（CSSのtransition-durationと一致させる）
 
-    const fadeOut = setTimeout(() => {
-      setCardOpacity(0);
-      const next = setTimeout(() => {
-        setShufflePos((p) => (p + 1) % TAROT_CARDS.length);
-        setCardOpacity(1);
-      }, FADE);
-      return () => clearTimeout(next);
-    }, DISPLAY);
+    let displayTimer: ReturnType<typeof setTimeout>;
+    let switchTimer: ReturnType<typeof setTimeout>;
+    let raf1: number, raf2: number;
 
-    return () => clearTimeout(fadeOut);
-  }, [shufflePos]);
+    const scheduleNext = () => {
+      displayTimer = setTimeout(() => {
+        // ① フェードアウト開始
+        setCardVisible(false);
+
+        switchTimer = setTimeout(() => {
+          // ② 完全に不可視になってからカードデータを差し替え
+          nextPosRef.current = (nextPosRef.current + 1) % TAROT_CARDS.length;
+          setDisplayCard(TAROT_CARDS[shuffled[nextPosRef.current]]);
+          setImgError(false);
+
+          // ③ Reactが新カードをDOMに反映した直後にフェードイン（2フレーム待機）
+          raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+              setCardVisible(true);
+              scheduleNext(); // 次のサイクルをスケジュール
+            });
+          });
+        }, FADE);
+      }, DISPLAY);
+    };
+
+    scheduleNext();
+
+    return () => {
+      clearTimeout(displayTimer);
+      clearTimeout(switchTimer);
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  // shuffledは初回のみ生成される安定した値なので実質マウント時1回のみ実行
+  }, [shuffled]);
 
   // ── BGM（3曲ランダム切替・フェードイン/アウト）──────────────────────
   const [bgmEnabled, setBgmEnabled] = useState(false);
@@ -331,24 +356,25 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         {/* タロットカード */}
         <div
           className="wr-card"
-          style={{ opacity: cardOpacity, transition: "opacity 2s ease-in-out" }}
+          style={{ opacity: cardVisible ? 1 : 0, transition: "opacity 1.5s ease-in-out" }}
         >
           {!imgError ? (
             <img
-              src={currentCard.img}
-              alt={currentCard.name}
+              key={displayCard.name}
+              src={displayCard.img}
+              alt={displayCard.name}
               className="wr-card-img"
               draggable={false}
               onError={() => setImgError(true)}
             />
           ) : (
             <div className="wr-card-fallback">
-              <div className="wr-card-roman">{currentCard.roman}</div>
-              <div className="wr-card-symbol-big">{currentCard.symbol}</div>
+              <div className="wr-card-roman">{displayCard.roman}</div>
+              <div className="wr-card-symbol-big">{displayCard.symbol}</div>
             </div>
           )}
-          <div className="wr-card-name">{currentCard.name}</div>
-          <div className="wr-card-meaning">{currentCard.meaning}</div>
+          <div className="wr-card-name">{displayCard.name}</div>
+          <div className="wr-card-meaning">{displayCard.meaning}</div>
         </div>
 
         {/* 待機メッセージ */}
