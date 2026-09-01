@@ -79,6 +79,9 @@ export default function ClientSession() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // 音声通話パネルの高さを動的計測（fixedバー分のスペース計算に使用）
   const [voicePanelHeight, setVoicePanelHeight] = useState(0);
+  // 画面スリープ防止（音声・ビデオ鑑定のみ）
+  const sessionWakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
+  const [sessionWakeLockActive, setSessionWakeLockActive] = useState(false);
   const voicePanelObserverRef = useRef<ResizeObserver | null>(null);
   const voicePanelCallbackRef = useCallback((el: HTMLDivElement | null) => {
     if (voicePanelObserverRef.current) {
@@ -111,6 +114,35 @@ export default function ClientSession() {
     { id: sessionData?.fortuneTellerId ?? 0 },
     { enabled: !!sessionData?.fortuneTellerId }
   );
+
+  // 音声・ビデオ鑑定中の画面スリープ防止
+  useEffect(() => {
+    const sType = session?.sessionType;
+    if (!showWaitingRoom && (sType === "voice" || sType === "video")) {
+      let released = false;
+      const acquire = async () => {
+        if ("wakeLock" in navigator) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const lock = await (navigator as any).wakeLock.request("screen");
+            if (!released) {
+              sessionWakeLockRef.current = lock;
+              setSessionWakeLockActive(true);
+            } else {
+              lock.release().catch(() => {});
+            }
+          } catch { /* 未対応ブラウザは案内テキストで対応 */ }
+        }
+      };
+      acquire();
+      return () => {
+        released = true;
+        sessionWakeLockRef.current?.release().catch(() => {});
+        sessionWakeLockRef.current = null;
+        setSessionWakeLockActive(false);
+      };
+    }
+  }, [showWaitingRoom, session?.sessionType]);
 
   // Initialize session
   useEffect(() => {
@@ -770,6 +802,34 @@ export default function ClientSession() {
           </p>
         )}
       </div>
+
+      {/* スリープ防止案内（音声・ビデオ鑑定、待機室終了後） */}
+      {(session?.sessionType === "voice" || session?.sessionType === "video") && !showWaitingRoom && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "8px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 40,
+            maxWidth: "340px",
+            width: "90%",
+            borderRadius: "0.5rem",
+            padding: "6px 12px",
+            fontSize: "11px",
+            fontFamily: "'Noto Sans JP', sans-serif",
+            textAlign: "center",
+            lineHeight: 1.5,
+            ...(sessionWakeLockActive
+              ? { background: "rgba(100,200,180,0.12)", border: "1px solid rgba(100,200,180,0.3)", color: "#a8d4c9" }
+              : { background: "rgba(232,213,100,0.12)", border: "1px solid rgba(232,213,100,0.3)", color: "#e8d5a0" }),
+          }}
+        >
+          {sessionWakeLockActive
+            ? "🔒 画面スリープを自動で防止しています"
+            : "📵 端末の「画面の自動ロック」をオフにして鑑定をお楽しみください"}
+        </div>
+      )}
 
       {/* Voice Call Panel (voice sessions only) - fixed固定 */}
       {session?.sessionType === "voice" && (

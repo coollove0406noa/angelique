@@ -9,28 +9,28 @@ const BGM_TRACKS = [
 
 // ── タロットカードデータ（大アルカナ22枚・実画像付き）──────────────────
 const TAROT_CARDS = [
-  { name: "愚者",         meaning: "新しい始まり・自由・冒険への一歩",       img: `${CDN}/00_Fool_1772fd69.jpg` },
-  { name: "魔術師",       meaning: "意志の力・創造性・新しいスキル",         img: `${CDN}/01_Magician_a5223f26.jpg` },
-  { name: "女教皇",       meaning: "直感・内なる知恵・神秘",                 img: `${CDN}/02_High_Priestess_8d1c4c1f.jpg` },
-  { name: "女帝",         meaning: "豊かさ・母性・自然の恵み",               img: `${CDN}/03_Empress_3afb2b89.jpg` },
-  { name: "皇帝",         meaning: "安定・権威・しっかりとした基盤",         img: `${CDN}/04_Emperor_f6db9143.jpg` },
-  { name: "法王",         meaning: "伝統・精神的な導き・信頼",               img: `${CDN}/05_Hierophant_5c4b9d5a.jpg` },
-  { name: "恋人",         meaning: "愛・選択・調和",                         img: `${CDN}/06_Lovers_72beb078.jpg` },
-  { name: "戦車",         meaning: "勝利・意志の強さ・前進",                 img: `${CDN}/07_Chariot_27851a26.jpg` },
-  { name: "力",           meaning: "内なる強さ・勇気・忍耐",                 img: `${CDN}/08_Strength_82aa6f86.jpg` },
-  { name: "隐者",         meaning: "内省・孤独の時間・真実の探求",           img: `${CDN}/09_Hermit_5d0fa205.jpg` },
-  { name: "運命の輪",     meaning: "変化・サイクル・運命の転換点",           img: `${CDN}/10_Wheel_of_Fortune_e02b405b.jpg` },
-  { name: "正義",         meaning: "公平・バランス・真実",                   img: `${CDN}/11_Justice_768387c8.jpg` },
-  { name: "吹るされた男", meaning: "手放す・新しい視点・待つ時間",           img: `${CDN}/12_Hanged_Man_a9c5873d.jpg` },
-  { name: "死",           meaning: "変容・終わりと始まり・再生",             img: `${CDN}/13_Death_a746d50f.jpg` },
-  { name: "節制",         meaning: "調和・バランス・穏やかな流れ",           img: `${CDN}/14_Temperance_75152b25.jpg` },
-  { name: "悪魔",         meaning: "束縛からの解放・欲望・影の部分",         img: `${CDN}/15_Devil_7ce26fa2.jpg` },
-  { name: "塔",           meaning: "突然の変化・古いものの崩壊・解放",       img: `${CDN}/16_Tower_2b7fbe3d.jpg` },
-  { name: "星",           meaning: "希望・癍し・未来への光",                 img: `${CDN}/17_Star_37f26fa5.jpg` },
-  { name: "月",           meaning: "無意識・夢・隠れた真実",                 img: `${CDN}/18_Moon_482dc011.jpg` },
-  { name: "太陽",         meaning: "喜び・成功・輝かしいエネルギー",         img: `${CDN}/19_Sun_f5a128e4.jpg` },
-  { name: "審判",         meaning: "覚醒・再生・新しい使命",                 img: `${CDN}/20_Judgement_bc8ffe67.jpg` },
-  { name: "世界",         meaning: "完成・達成・新たなサイクルの始まり",     img: `${CDN}/21_World_58612ce5.jpg` },
+  { name: "愚者",         meaning: "新しい始まり・自由・冒険への一歩",       img: `${CDN}/00_Fool_1772fd69.jpg`,            roman: "0",     symbol: "☆" },
+  { name: "魔術師",       meaning: "意志の力・創造性・新しいスキル",         img: `${CDN}/01_Magician_a5223f26.jpg`,        roman: "Ⅰ",    symbol: "✦" },
+  { name: "女教皇",       meaning: "直感・内なる知恵・神秘",                 img: `${CDN}/02_High_Priestess_8d1c4c1f.jpg`,  roman: "Ⅱ",    symbol: "☽" },
+  { name: "女帝",         meaning: "豊かさ・母性・自然の恵み",               img: `${CDN}/03_Empress_3afb2b89.jpg`,         roman: "Ⅲ",    symbol: "♀" },
+  { name: "皇帝",         meaning: "安定・権威・しっかりとした基盤",         img: `${CDN}/04_Emperor_f6db9143.jpg`,         roman: "Ⅳ",    symbol: "♦" },
+  { name: "法王",         meaning: "伝統・精神的な導き・信頼",               img: `${CDN}/05_Hierophant_5c4b9d5a.jpg`,      roman: "Ⅴ",    symbol: "✝" },
+  { name: "恋人",         meaning: "愛・選択・調和",                         img: `${CDN}/06_Lovers_72beb078.jpg`,          roman: "Ⅵ",    symbol: "♡" },
+  { name: "戦車",         meaning: "勝利・意志の強さ・前進",                 img: `${CDN}/07_Chariot_27851a26.jpg`,         roman: "Ⅶ",    symbol: "⚔" },
+  { name: "力",           meaning: "内なる強さ・勇気・忍耐",                 img: `${CDN}/08_Strength_82aa6f86.jpg`,        roman: "Ⅷ",    symbol: "∞" },
+  { name: "隠者",         meaning: "内省・孤独の時間・真実の探求",           img: `${CDN}/09_Hermit_5d0fa205.jpg`,          roman: "Ⅸ",    symbol: "🕯" },
+  { name: "運命の輪",     meaning: "変化・サイクル・運命の転換点",           img: `${CDN}/10_Wheel_of_Fortune_e02b405b.jpg`,roman: "Ⅹ",    symbol: "☯" },
+  { name: "正義",         meaning: "公平・バランス・真実",                   img: `${CDN}/11_Justice_768387c8.jpg`,         roman: "Ⅺ",    symbol: "⚖" },
+  { name: "吊るされた男", meaning: "手放す・新しい視点・待つ時間",           img: `${CDN}/12_Hanged_Man_a9c5873d.jpg`,      roman: "Ⅻ",    symbol: "△" },
+  { name: "死",           meaning: "変容・終わりと始まり・再生",             img: `${CDN}/13_Death_a746d50f.jpg`,           roman: "ⅩⅢ",  symbol: "☠" },
+  { name: "節制",         meaning: "調和・バランス・穏やかな流れ",           img: `${CDN}/14_Temperance_75152b25.jpg`,      roman: "ⅩⅣ",  symbol: "≈" },
+  { name: "悪魔",         meaning: "束縛からの解放・欲望・影の部分",         img: `${CDN}/15_Devil_7ce26fa2.jpg`,           roman: "ⅩⅤ",  symbol: "⛓" },
+  { name: "塔",           meaning: "突然の変化・古いものの崩壊・解放",       img: `${CDN}/16_Tower_2b7fbe3d.jpg`,           roman: "ⅩⅥ",  symbol: "⚡" },
+  { name: "星",           meaning: "希望・光・未来への光",                   img: `${CDN}/17_Star_37f26fa5.jpg`,            roman: "ⅩⅦ",  symbol: "★" },
+  { name: "月",           meaning: "無意識・夢・隠れた真実",                 img: `${CDN}/18_Moon_482dc011.jpg`,            roman: "ⅩⅧ",  symbol: "🌙" },
+  { name: "太陽",         meaning: "喜び・成功・輝かしいエネルギー",         img: `${CDN}/19_Sun_f5a128e4.jpg`,             roman: "ⅩⅨ",  symbol: "☀" },
+  { name: "審判",         meaning: "覚醒・再生・新しい使命",                 img: `${CDN}/20_Judgement_bc8ffe67.jpg`,       roman: "ⅩⅩ",  symbol: "♪" },
+  { name: "世界",         meaning: "完成・達成・新たなサイクルの始まり",     img: `${CDN}/21_World_58612ce5.jpg`,           roman: "ⅩⅩⅠ", symbol: "◎" },
 ];
 
 // カードインデックスをランダムに並べ替えたシャッフル済みリストを生成
@@ -53,7 +53,11 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
   const [shuffled] = useState(() => shuffleIndices(TAROT_CARDS.length));
   const [shufflePos, setShufflePos] = useState(0);
   const [cardOpacity, setCardOpacity] = useState(1);
+  const [imgError, setImgError] = useState(false);
   const currentCard = TAROT_CARDS[shuffled[shufflePos]];
+
+  // カードが切り替わったら画像エラーをリセット
+  useEffect(() => { setImgError(false); }, [shufflePos]);
 
   useEffect(() => {
     const DISPLAY = 15000; // 15秒表示
@@ -261,6 +265,41 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
     };
   }, []);
 
+  // ── 画面スリープ防止（音声・ビデオ鑑定のみ）─────────────────────────
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
+  const [wakeLockActive, setWakeLockActive] = useState(false);
+
+  useEffect(() => {
+    if (sessionType !== "voice" && sessionType !== "video") return;
+    let released = false;
+
+    const acquire = async () => {
+      if ("wakeLock" in navigator) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const lock = await (navigator as any).wakeLock.request("screen");
+          if (!released) {
+            wakeLockRef.current = lock;
+            setWakeLockActive(true);
+          } else {
+            lock.release().catch(() => {});
+          }
+        } catch {
+          // WakeLock 未対応 or 拒否：テキスト案内で対応
+        }
+      }
+    };
+
+    acquire();
+
+    return () => {
+      released = true;
+      wakeLockRef.current?.release().catch(() => {});
+      wakeLockRef.current = null;
+      setWakeLockActive(false);
+    };
+  }, [sessionType]);
+
   // ── レンダリング ──────────────────────────────────────────────────────
   return (
     <div className="wr-root">
@@ -296,12 +335,20 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           className="wr-card"
           style={{ opacity: cardOpacity, transition: "opacity 2s ease-in-out" }}
         >
-          <img
-            src={currentCard.img}
-            alt={currentCard.name}
-            className="wr-card-img"
-            draggable={false}
-          />
+          {!imgError ? (
+            <img
+              src={currentCard.img}
+              alt={currentCard.name}
+              className="wr-card-img"
+              draggable={false}
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="wr-card-fallback">
+              <div className="wr-card-roman">{currentCard.roman}</div>
+              <div className="wr-card-symbol-big">{currentCard.symbol}</div>
+            </div>
+          )}
           <div className="wr-card-name">{currentCard.name}</div>
           <div className="wr-card-meaning">{currentCard.meaning}</div>
         </div>
@@ -321,7 +368,18 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           {bgmEnabled ? "🔇 BGMを止める" : "🎵 BGMを流す"}
         </button>
 
-        {/* 音声・ビデオ鑑定のみ：マイクテスト */}
+        {/* 音声・ビデオ鑑定のみ：スリープ防止案内 + マイクテスト */}
+        {(sessionType === "voice" || sessionType === "video") && (
+          <div className="wr-sleep-notice">
+            {wakeLockActive ? (
+              <p className="wr-sleep-ok">🔒 画面スリープを自動で防止しています</p>
+            ) : (
+              <p className="wr-sleep-warn">
+                📵 画面が自動的にオフにならないよう、端末の設定で<strong>「画面の自動ロック」をオフ</strong>にしてください
+              </p>
+            )}
+          </div>
+        )}
         {(sessionType === "voice" || sessionType === "video") && (
           <div className="wr-mic-panel">
             <div className="wr-mic-title">🎤 マイクテスト</div>
@@ -447,6 +505,30 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           object-fit: cover;
           user-select: none;
         }
+        .wr-card-fallback {
+          width: 140px;
+          height: 200px;
+          border-radius: 0.75rem;
+          border: 1.5px solid rgba(201,168,163,0.5);
+          background: linear-gradient(160deg, rgba(40,20,60,0.9) 0%, rgba(25,12,45,0.95) 100%);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+        .wr-card-roman {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 0.9rem;
+          color: rgba(201,168,163,0.7);
+          letter-spacing: 0.2em;
+        }
+        .wr-card-symbol-big {
+          font-size: 3rem;
+          line-height: 1;
+          filter: drop-shadow(0 0 8px rgba(201,168,163,0.6));
+        }
         .wr-card-name {
           font-family: 'Cormorant Garamond', serif;
           font-size: 1.4rem;
@@ -492,6 +574,35 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           font-family: 'Noto Sans JP', sans-serif;
         }
         .wr-bgm-btn:hover { background: rgba(201,168,163,0.22); }
+        /* スリープ防止案内 */
+        .wr-sleep-notice {
+          width: 100%;
+          border-radius: 0.75rem;
+          padding: 0.6rem 0.9rem;
+          font-family: 'Noto Sans JP', sans-serif;
+          font-size: 0.75rem;
+          line-height: 1.6;
+          text-align: left;
+        }
+        .wr-sleep-ok {
+          color: #a8d4c9;
+          margin: 0;
+          background: rgba(100,200,180,0.08);
+          border: 1px solid rgba(100,200,180,0.25);
+          border-radius: 0.5rem;
+          padding: 0.4rem 0.7rem;
+        }
+        .wr-sleep-warn {
+          color: #e8d5a0;
+          margin: 0;
+          background: rgba(232,213,100,0.08);
+          border: 1px solid rgba(232,213,100,0.25);
+          border-radius: 0.5rem;
+          padding: 0.4rem 0.7rem;
+        }
+        .wr-sleep-warn strong {
+          color: #f0e070;
+        }
         /* マイクテスト */
         .wr-mic-panel {
           background: rgba(255,255,255,0.05);
