@@ -1,36 +1,34 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const CDN = "https://d2xsxph8kpxj0f.cloudfront.net/310519663226441831/B6EzJ6NeuYcNikyfaASeGg";
-
 // ── BGM ──────────────────────────────────────────────────────────────────
 const BGM_TRACKS = [
   `/Moon鳥と清流MP3.mp3`,
 ];
 
-// ── タロットカードデータ（大アルカナ22枚・実画像付き）──────────────────
+// ── タロットカードデータ（大アルカナ22枚・自前 public/tarot/ 参照）──────
 const TAROT_CARDS = [
-  { name: "愚者",         meaning: "新しい始まり・自由・冒険への一歩",       img: `${CDN}/00_Fool_1772fd69.jpg`,            roman: "0",     symbol: "☆" },
-  { name: "魔術師",       meaning: "意志の力・創造性・新しいスキル",         img: `${CDN}/01_Magician_a5223f26.jpg`,        roman: "Ⅰ",    symbol: "✦" },
-  { name: "女教皇",       meaning: "直感・内なる知恵・神秘",                 img: `${CDN}/02_High_Priestess_8d1c4c1f.jpg`,  roman: "Ⅱ",    symbol: "☽" },
-  { name: "女帝",         meaning: "豊かさ・母性・自然の恵み",               img: `${CDN}/03_Empress_3afb2b89.jpg`,         roman: "Ⅲ",    symbol: "♀" },
-  { name: "皇帝",         meaning: "安定・権威・しっかりとした基盤",         img: `${CDN}/04_Emperor_f6db9143.jpg`,         roman: "Ⅳ",    symbol: "♦" },
-  { name: "法王",         meaning: "伝統・精神的な導き・信頼",               img: `${CDN}/05_Hierophant_5c4b9d5a.jpg`,      roman: "Ⅴ",    symbol: "✝" },
-  { name: "恋人",         meaning: "愛・選択・調和",                         img: `${CDN}/06_Lovers_72beb078.jpg`,          roman: "Ⅵ",    symbol: "♡" },
-  { name: "戦車",         meaning: "勝利・意志の強さ・前進",                 img: `${CDN}/07_Chariot_27851a26.jpg`,         roman: "Ⅶ",    symbol: "⚔" },
-  { name: "力",           meaning: "内なる強さ・勇気・忍耐",                 img: `${CDN}/08_Strength_82aa6f86.jpg`,        roman: "Ⅷ",    symbol: "∞" },
-  { name: "隠者",         meaning: "内省・孤独の時間・真実の探求",           img: `${CDN}/09_Hermit_5d0fa205.jpg`,          roman: "Ⅸ",    symbol: "🕯" },
-  { name: "運命の輪",     meaning: "変化・サイクル・運命の転換点",           img: `${CDN}/10_Wheel_of_Fortune_e02b405b.jpg`,roman: "Ⅹ",    symbol: "☯" },
-  { name: "正義",         meaning: "公平・バランス・真実",                   img: `${CDN}/11_Justice_768387c8.jpg`,         roman: "Ⅺ",    symbol: "⚖" },
-  { name: "吊るされた男", meaning: "手放す・新しい視点・待つ時間",           img: `${CDN}/12_Hanged_Man_a9c5873d.jpg`,      roman: "Ⅻ",    symbol: "△" },
-  { name: "死",           meaning: "変容・終わりと始まり・再生",             img: `${CDN}/13_Death_a746d50f.jpg`,           roman: "ⅩⅢ",  symbol: "☠" },
-  { name: "節制",         meaning: "調和・バランス・穏やかな流れ",           img: `${CDN}/14_Temperance_75152b25.jpg`,      roman: "ⅩⅣ",  symbol: "≈" },
-  { name: "悪魔",         meaning: "束縛からの解放・欲望・影の部分",         img: `${CDN}/15_Devil_7ce26fa2.jpg`,           roman: "ⅩⅤ",  symbol: "⛓" },
-  { name: "塔",           meaning: "突然の変化・古いものの崩壊・解放",       img: `${CDN}/16_Tower_2b7fbe3d.jpg`,           roman: "ⅩⅥ",  symbol: "⚡" },
-  { name: "星",           meaning: "希望・光・未来への光",                   img: `${CDN}/17_Star_37f26fa5.jpg`,            roman: "ⅩⅦ",  symbol: "★" },
-  { name: "月",           meaning: "無意識・夢・隠れた真実",                 img: `${CDN}/18_Moon_482dc011.jpg`,            roman: "ⅩⅧ",  symbol: "🌙" },
-  { name: "太陽",         meaning: "喜び・成功・輝かしいエネルギー",         img: `${CDN}/19_Sun_f5a128e4.jpg`,             roman: "ⅩⅨ",  symbol: "☀" },
-  { name: "審判",         meaning: "覚醒・再生・新しい使命",                 img: `${CDN}/20_Judgement_bc8ffe67.jpg`,       roman: "ⅩⅩ",  symbol: "♪" },
-  { name: "世界",         meaning: "完成・達成・新たなサイクルの始まり",     img: `${CDN}/21_World_58612ce5.jpg`,           roman: "ⅩⅩⅠ", symbol: "◎" },
+  { name: "愚者",         meaning: "新しい始まり・自由・冒険への一歩",       img: "/tarot/00_Fool.webp",            roman: "0",     symbol: "☆" },
+  { name: "魔術師",       meaning: "意志の力・創造性・新しいスキル",         img: "/tarot/01_Magician.webp",        roman: "Ⅰ",    symbol: "✦" },
+  { name: "女教皇",       meaning: "直感・内なる知恵・神秘",                 img: "/tarot/02_High_Priestess.webp",  roman: "Ⅱ",    symbol: "☽" },
+  { name: "女帝",         meaning: "豊かさ・母性・自然の恵み",               img: "/tarot/03_Empress.webp",         roman: "Ⅲ",    symbol: "♀" },
+  { name: "皇帝",         meaning: "安定・権威・しっかりとした基盤",         img: "/tarot/04_Emperor.webp",         roman: "Ⅳ",    symbol: "♦" },
+  { name: "法王",         meaning: "伝統・精神的な導き・信頼",               img: "/tarot/05_Hierophant.webp",      roman: "Ⅴ",    symbol: "✝" },
+  { name: "恋人",         meaning: "愛・選択・調和",                         img: "/tarot/06_Lovers.webp",          roman: "Ⅵ",    symbol: "♡" },
+  { name: "戦車",         meaning: "勝利・意志の強さ・前進",                 img: "/tarot/07_Chariot.webp",         roman: "Ⅶ",    symbol: "⚔" },
+  { name: "力",           meaning: "内なる強さ・勇気・忍耐",                 img: "/tarot/08_Strength.webp",        roman: "Ⅷ",    symbol: "∞" },
+  { name: "隠者",         meaning: "内省・孤独の時間・真実の探求",           img: "/tarot/09_Hermit.webp",          roman: "Ⅸ",    symbol: "🕯" },
+  { name: "運命の輪",     meaning: "変化・サイクル・運命の転換点",           img: "/tarot/10_Wheel_of_Fortune.webp",roman: "Ⅹ",    symbol: "☯" },
+  { name: "正義",         meaning: "公平・バランス・真実",                   img: "/tarot/11_Justice.webp",         roman: "Ⅺ",    symbol: "⚖" },
+  { name: "吊るされた男", meaning: "手放す・新しい視点・待つ時間",           img: "/tarot/12_Hanged_Man.webp",      roman: "Ⅻ",    symbol: "△" },
+  { name: "死",           meaning: "変容・終わりと始まり・再生",             img: "/tarot/13_Death.webp",           roman: "ⅩⅢ",  symbol: "☠" },
+  { name: "節制",         meaning: "調和・バランス・穏やかな流れ",           img: "/tarot/14_Temperance.webp",      roman: "ⅩⅣ",  symbol: "≈" },
+  { name: "悪魔",         meaning: "束縛からの解放・欲望・影の部分",         img: "/tarot/15_Devil.webp",           roman: "ⅩⅤ",  symbol: "⛓" },
+  { name: "塔",           meaning: "突然の変化・古いものの崩壊・解放",       img: "/tarot/16_Tower.webp",           roman: "ⅩⅥ",  symbol: "⚡" },
+  { name: "星",           meaning: "希望・光・未来への光",                   img: "/tarot/17_Star.webp",            roman: "ⅩⅦ",  symbol: "★" },
+  { name: "月",           meaning: "無意識・夢・隠れた真実",                 img: "/tarot/18_Moon.webp",            roman: "ⅩⅧ",  symbol: "🌙" },
+  { name: "太陽",         meaning: "喜び・成功・輝かしいエネルギー",         img: "/tarot/19_Sun.webp",             roman: "ⅩⅨ",  symbol: "☀" },
+  { name: "審判",         meaning: "覚醒・再生・新しい使命",                 img: "/tarot/20_Judgement.webp",       roman: "ⅩⅩ",  symbol: "♪" },
+  { name: "世界",         meaning: "完成・達成・新たなサイクルの始まり",     img: "/tarot/21_World.webp",           roman: "ⅩⅩⅠ", symbol: "◎" },
 ];
 
 // カードインデックスをランダムに並べ替えたシャッフル済みリストを生成
