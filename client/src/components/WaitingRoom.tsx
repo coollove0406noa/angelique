@@ -467,10 +467,10 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           inset: 0;
           background: linear-gradient(135deg, #12082a 0%, #251540 45%, #12082a 100%);
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
           z-index: 50;
-          overflow: hidden;
+          overflow-y: auto;
         }
         .wr-stars {
           position: absolute;
@@ -492,11 +492,12 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 1.25rem;
-          padding: 2rem 1.5rem;
+          gap: 0.75rem;
+          padding: 1.25rem 1.5rem 2rem;
           max-width: 380px;
           width: 100%;
           text-align: center;
+          margin: 0 auto;
         }
         .wr-logo {
           display: flex;
@@ -518,9 +519,9 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(201,168,163,0.25);
           border-radius: 1.25rem;
-          padding: 1rem 1.5rem 1.2rem;
+          padding: 0.75rem 1.5rem 1rem;
           width: 100%;
-          min-height: 440px;
+          min-height: 420px;
           backdrop-filter: blur(12px);
           box-shadow: 0 8px 40px rgba(0,0,0,0.4);
         }
@@ -564,14 +565,13 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           color: #e8d5d0;
           font-weight: 600;
           letter-spacing: 0.12em;
-          margin-top: 0.25rem;
         }
         .wr-card-meaning {
           font-family: 'Noto Sans JP', sans-serif;
           font-size: 0.8rem;
           color: #c9a8a3;
           line-height: 1.7;
-          min-height: 2.8em;
+          min-height: 3.5em;
           overflow: hidden;
         }
         /* 待機メッセージ */
@@ -751,8 +751,8 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         }
         /* スマホ対応 */
         @media (max-width: 420px) {
-          .wr-content { padding: 1.5rem 1rem; gap: 1rem; }
-          .wr-card { min-height: 370px; }
+          .wr-content { padding: 1rem 1rem 1.5rem; gap: 0.6rem; }
+          .wr-card { min-height: 345px; }
           .wr-card-img { width: 145px; height: 220px; }
           .wr-card-fallback { width: 145px; height: 220px; }
           .wr-card-name { font-size: 1.2rem; }
