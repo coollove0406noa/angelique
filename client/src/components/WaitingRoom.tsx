@@ -353,30 +353,30 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           <span className="wr-logo-text">angelique</span>
         </div>
 
-        {/* タロットカード：外枠は常に固定表示、内側コンテンツのみフェード */}
+        {/* タロットカード：外枠は固定サイズ、フェードは画像のみ */}
         <div className="wr-card">
-          <div
-            className="wr-card-inner"
-            style={{ opacity: cardVisible ? 1 : 0, transition: "opacity 1.5s ease-in-out" }}
-          >
-            {!imgError ? (
-              <img
-                key={displayCard.name}
-                src={displayCard.img}
-                alt={displayCard.name}
-                className="wr-card-img"
-                draggable={false}
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              <div className="wr-card-fallback">
-                <div className="wr-card-roman">{displayCard.roman}</div>
-                <div className="wr-card-symbol-big">{displayCard.symbol}</div>
-              </div>
-            )}
-            <div className="wr-card-name">{displayCard.name}</div>
-            <div className="wr-card-meaning">{displayCard.meaning}</div>
-          </div>
+          {!imgError ? (
+            <img
+              key={displayCard.name}
+              src={displayCard.img}
+              alt={displayCard.name}
+              className="wr-card-img"
+              style={{ opacity: cardVisible ? 1 : 0, transition: "opacity 1.5s ease-in-out" }}
+              draggable={false}
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div
+              className="wr-card-fallback"
+              style={{ opacity: cardVisible ? 1 : 0, transition: "opacity 1.5s ease-in-out" }}
+            >
+              <div className="wr-card-roman">{displayCard.roman}</div>
+              <div className="wr-card-symbol-big">{displayCard.symbol}</div>
+            </div>
+          )}
+          {/* テキストはアニメーションなし・displayCard変更時に即座に切り替わる */}
+          <div className="wr-card-name">{displayCard.name}</div>
+          <div className="wr-card-meaning">{displayCard.meaning}</div>
         </div>
 
         {/* 待機メッセージ */}
@@ -509,34 +509,30 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           color: #e8d5d0;
           letter-spacing: 0.18em;
         }
-        /* カード：外枠は常に固定・フェードしない */
+        /* カード：固定サイズ・フェードしない */
         .wr-card {
           display: flex;
           flex-direction: column;
           align-items: center;
+          gap: 0.6rem;
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(201,168,163,0.25);
           border-radius: 1.25rem;
           padding: 1.25rem 1.5rem 1.5rem;
           width: 100%;
+          min-height: 360px;
           backdrop-filter: blur(12px);
           box-shadow: 0 8px 40px rgba(0,0,0,0.4);
         }
-        /* カード内側：フェード対象のコンテンツラッパー */
-        .wr-card-inner {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.6rem;
-          width: 100%;
-        }
+        /* 画像：固定サイズ（高さautoを廃止して枠の収縮を防ぐ） */
         .wr-card-img {
           width: 140px;
-          height: auto;
+          height: 200px;
           border-radius: 0.75rem;
           box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-          object-fit: cover;
+          object-fit: contain;
           user-select: none;
+          flex-shrink: 0;
         }
         .wr-card-fallback {
           width: 140px;
@@ -575,6 +571,8 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
           font-size: 0.8rem;
           color: #c9a8a3;
           line-height: 1.7;
+          min-height: 2.8em;
+          overflow: hidden;
         }
         /* 待機メッセージ */
         .wr-message {
@@ -754,7 +752,9 @@ export function WaitingRoom({ sessionType, onSessionStarted }: WaitingRoomProps)
         /* スマホ対応 */
         @media (max-width: 420px) {
           .wr-content { padding: 1.5rem 1rem; gap: 1rem; }
-          .wr-card-img { width: 110px; }
+          .wr-card { min-height: 320px; }
+          .wr-card-img { width: 110px; height: 160px; }
+          .wr-card-fallback { width: 110px; height: 160px; }
           .wr-card-name { font-size: 1.2rem; }
         }
       `}</style>
