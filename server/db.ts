@@ -167,6 +167,24 @@ export async function updateFortuneTeller(
   await db.update(fortuneTellers).set(data).where(eq(fortuneTellers.id, id));
 }
 
+export async function deleteFortuneTellerCascade(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  // Delete messages for this fortune teller's sessions
+  const ftSessions = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.fortuneTellerId, id));
+  for (const s of ftSessions) {
+    await db.delete(messages).where(eq(messages.sessionId, s.id));
+  }
+  // Delete sessions, clients, stamps
+  await db.delete(sessions).where(eq(sessions.fortuneTellerId, id));
+  await db.delete(clients).where(eq(clients.fortuneTellerId, id));
+  await db.delete(stamps).where(eq(stamps.fortuneTellerId, id));
+  // Delete app_settings for this fortune teller
+  await db.delete(appSettings).where(like(appSettings.key, `ft_${id}_%`));
+  // Delete the fortune teller record
+  await db.delete(fortuneTellers).where(eq(fortuneTellers.id, id));
+}
+
 // ── Super Admin Auth ───────────────────────────────────────────────────────
 
 export async function getSuperAdminPasswordHash(): Promise<string | null> {

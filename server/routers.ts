@@ -6,6 +6,7 @@ import {
   createCarryover,
   createClient,
   createFortuneTeller,
+  deleteFortuneTellerCascade,
   createSession,
   createStamp,
   deleteClient,
@@ -321,6 +322,19 @@ const superAdminRouter = router({
       console.log("[createFortuneTeller] verify:", !!created, "isActive:", created?.isActive, "passwordHash length:", created?.passwordHash?.length ?? 0);
 
       return { id, slug: input.slug };
+    }),
+
+  deleteFortuneTeller: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const cookieHeader = ctx.req.headers.cookie || "";
+      const token = await getSuperAdminTokenFromCookie(cookieHeader);
+      const stored = await getSuperAdminSessionToken();
+      if (!token || stored !== token) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+      await deleteFortuneTellerCascade(input.id);
+      return { success: true };
     }),
 
   sendTestEmail: publicProcedure

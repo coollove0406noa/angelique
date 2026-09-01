@@ -108,6 +108,7 @@ export default function SuperAdminDashboard() {
   });
   const [testEmailTarget, setTestEmailTarget] = useState<{ id: number; brandName: string } | null>(null);
   const [testEmailAddress, setTestEmailAddress] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; brandName: string } | null>(null);
 
   const [editForm, setEditForm] = useState({
     brandName: "", themeColor: "#f3e7e5", accentColor: "#c9a8a3",
@@ -131,6 +132,15 @@ export default function SuperAdminDashboard() {
       toast.success("テストメールを送信しました");
       setTestEmailTarget(null);
       setTestEmailAddress("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteMutation = trpc.superAdmin.deleteFortuneTeller.useMutation({
+    onSuccess: () => {
+      toast.success("アカウントを削除しました");
+      setDeleteTarget(null);
+      refetchFt();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -279,6 +289,13 @@ export default function SuperAdminDashboard() {
                     >
                       {ft.isActive ? "無効化" : "有効化"}
                     </button>
+                    <button
+                      className="angelique-btn-outline"
+                      style={{ padding: "6px 14px", fontSize: "12px", color: "#b71c1c", borderColor: "#b71c1c" }}
+                      onClick={() => setDeleteTarget({ id: ft.id, brandName: ft.brandName })}
+                    >
+                      削除
+                    </button>
                   </div>
                 </div>
               </div>
@@ -354,6 +371,41 @@ export default function SuperAdminDashboard() {
                 <button type="button" className="angelique-btn-outline" onClick={() => setShowCreateForm(false)}>キャンセル</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(107,91,88,0.25)" }} onClick={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
+          <div className="angelique-card p-8 w-full max-w-sm mx-4">
+            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "20px", color: "#b71c1c", marginBottom: "8px" }}>
+              アカウントを削除
+            </h2>
+            <p style={{ fontSize: "13px", color: "#6b5b58", marginBottom: "8px" }}>
+              <strong>{deleteTarget.brandName}</strong> を削除しますか？
+            </p>
+            <p style={{ fontSize: "12px", color: "#e57373", marginBottom: "24px", lineHeight: 1.7 }}>
+              ⚠ この操作は取り消せません。<br />
+              関連するお客様・セッション・スタンプ・設定もすべて削除されます。
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                className="angelique-btn-outline"
+                style={{ padding: "8px 20px" }}
+                onClick={() => setDeleteTarget(null)}
+              >
+                キャンセル
+              </button>
+              <button
+                className="angelique-btn"
+                style={{ padding: "8px 20px", background: "#b71c1c", borderColor: "#b71c1c" }}
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate({ id: deleteTarget.id })}
+              >
+                {deleteMutation.isPending ? "削除中..." : "削除する"}
+              </button>
+            </div>
           </div>
         </div>
       )}

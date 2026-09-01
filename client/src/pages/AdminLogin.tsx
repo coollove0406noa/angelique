@@ -23,13 +23,14 @@ export default function AdminLogin({ slug }: AdminLoginProps) {
       }
       window.location.replace(`/admin/${slug}`);
     },
-    onError: () => {
-      toast.error("パスワードが違います");
+    onError: (e) => {
+      toast.error(e.message || "パスワードが違います");
     },
   });
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[AdminLogin] login attempt slug:", slug);
     loginMutation.mutate({ slug, password });
   };
 
